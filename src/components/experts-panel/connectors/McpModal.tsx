@@ -3,6 +3,8 @@ import {
   XCloseIcon, SearchIcon, ConfigureIcon, McpIcon, OpenExternalIcon, DeleteIcon,
 } from "@/foundation/components/Icon/icons";
 import { mcpDelete, mcpList, mcpToggle } from "@/lib/grok-client";
+import { ensureSession } from "@/lib/ensure-session";
+import { useSessionStore } from "@/stores/session-store";
 import type { McpServerEntry } from "@/lib/types";
 import { McpConfigEditor } from "./McpConfigEditor";
 
@@ -23,7 +25,7 @@ export function McpModal({
 
   const reload = useCallback(async () => {
     setLoading(true);
-    try { setServers(await mcpList()); }
+    try { setServers(await mcpList(useSessionStore.getState().sessionId ?? undefined)); }
     catch (e) { onToast?.(`加载 MCP 服务失败：${String(e).replace(/^Error:\s*/, "")}`); }
     finally { setLoading(false); }
   }, [onToast]);
@@ -34,12 +36,12 @@ export function McpModal({
     s.name.toLowerCase().includes(search.trim().toLowerCase()));
 
   const handleToggle = async (s: McpServerEntry, enabled: boolean) => {
-    try { await mcpToggle(s.name, enabled); reload(); }
+    try { await mcpToggle(await ensureSession(), s.name, enabled); reload(); }
     catch (e) { onToast?.(`切换失败：${String(e).replace(/^Error:\s*/, "")}`); }
   };
   const handleDelete = async (s: McpServerEntry) => {
     if (!confirm(`确定删除 MCP 服务「${s.name}」？`)) return;
-    try { await mcpDelete(s.name); onToast?.("已删除"); reload(); }
+    try { await mcpDelete(await ensureSession(), s.name); onToast?.("已删除"); reload(); }
     catch (e) { onToast?.(`删除失败：${String(e).replace(/^Error:\s*/, "")}`); }
   };
 

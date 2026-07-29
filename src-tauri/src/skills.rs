@@ -74,7 +74,14 @@ pub async fn skills_list(
         .unwrap()
         .clone()
         .ok_or("agent not initialized")?;
-    let params: Arc<RawValue> = raw_params(&serde_json::json!({ "cwd": cwd }));
+    // grok's `x.ai/skills/list` schema requires `cwd` to be a *string* when
+    // present (it rejects `null` with -32602). Omit the key entirely when the
+    // caller has no cwd so grok falls back to its own default.
+    let mut params_obj = serde_json::Map::new();
+    if let Some(c) = &cwd {
+        params_obj.insert("cwd".into(), serde_json::Value::String(c.clone()));
+    }
+    let params: Arc<RawValue> = raw_params(&serde_json::Value::Object(params_obj));
     // Prefer `x.ai/skills/config` (richer: includes paths/ignore config), but
     // fall back to `x.ai/skills/list` if the method is unavailable on this
     // grok build.

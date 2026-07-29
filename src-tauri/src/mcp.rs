@@ -86,16 +86,21 @@ pub struct McpUpsertRequest {
     pub enabled: Option<bool>,
 }
 
-/// List configured MCP servers.
+/// List configured MCP servers. `session_id` is optional — grok's
+/// `McpListRequest` accepts it (camelCase `sessionId`) to enrich entries with
+/// live session state; without it the agent-level catalog is returned.
 #[tauri::command]
-pub async fn mcp_list(state: State<'_, AppState>) -> Result<Vec<McpServerEntry>, String> {
+pub async fn mcp_list(
+    state: State<'_, AppState>,
+    session_id: Option<String>,
+) -> Result<Vec<McpServerEntry>, String> {
     let tx = state
         .tx
         .lock()
         .unwrap()
         .clone()
         .ok_or("agent not initialized")?;
-    let params = raw_params(&serde_json::json!({}));
+    let params = raw_params(&serde_json::json!({ "sessionId": session_id }));
     let v: McpListResponse = call_ext(&tx, "x.ai/mcp/list", params)
         .await
         .map_err(|e| e.to_string())?;
@@ -107,6 +112,7 @@ pub async fn mcp_list(state: State<'_, AppState>) -> Result<Vec<McpServerEntry>,
 #[tauri::command]
 pub async fn mcp_upsert(
     state: State<'_, AppState>,
+    session_id: String,
     server: McpUpsertRequest,
 ) -> Result<(), String> {
     let tx = state
@@ -115,7 +121,7 @@ pub async fn mcp_upsert(
         .unwrap()
         .clone()
         .ok_or("agent not initialized")?;
-    let payload = build_upsert_payload(&server)?;
+    let payload = build_upsert_payload(&session_id, &server)?;
     let params = raw_params(&payload);
     let _: acp::ExtResponse = call_ext_value(&tx, "x.ai/mcp/upsert", params)
         .await
@@ -125,14 +131,21 @@ pub async fn mcp_upsert(
 
 /// Delete an MCP server by name.
 #[tauri::command]
-pub async fn mcp_delete(state: State<'_, AppState>, name: String) -> Result<(), String> {
+pub async fn mcp_delete(
+    state: State<'_, AppState>,
+    session_id: String,
+    name: String,
+) -> Result<(), String> {
     let tx = state
         .tx
         .lock()
         .unwrap()
         .clone()
         .ok_or("agent not initialized")?;
-    let params = raw_params(&serde_json::json!({ "name": name }));
+    let params = raw_params(&serde_json::json!({
+        "session_id": session_id,
+        "server_name": name,
+    }));
     let _: acp::ExtResponse = call_ext_value(&tx, "x.ai/mcp/delete", params)
         .await
         .map_err(|e| e.to_string())?;
@@ -143,6 +156,7 @@ pub async fn mcp_delete(state: State<'_, AppState>, name: String) -> Result<(), 
 #[tauri::command]
 pub async fn mcp_toggle(
     state: State<'_, AppState>,
+    session_id: String,
     name: String,
     enabled: bool,
 ) -> Result<(), String> {
@@ -152,7 +166,11 @@ pub async fn mcp_toggle(
         .unwrap()
         .clone()
         .ok_or("agent not initialized")?;
-    let params = raw_params(&serde_json::json!({ "name": name, "enabled": enabled }));
+    let params = raw_params(&serde_json::json!({
+        "session_id": session_id,
+        "server_name": name,
+        "enabled": enabled,
+    }));
     let _: acp::ExtResponse = call_ext_value(&tx, "x.ai/mcp/toggle", params)
         .await
         .map_err(|e| e.to_string())?;
@@ -161,7 +179,11 @@ pub async fn mcp_toggle(
 
 /// Translate the frontend payload to the JSON grok's `x.ai/mcp/upsert` expects.
 ///
-/// grok's `McpServerTransportConfig` is a flattened enum; the wire shape is:
+/// grok's `McpUpsertRequest` (`xai-grok-shell/src/extensions/mcp.rs`) is:
+/// ```json
+/// { "session_id": "...", "server_name": "...", <flattened McpServerConfig> }
+/// ```
+/// where `McpServerConfig` flattens a `McpServerTransportConfig`:
 /// ```toml
 /// [mcp_servers.filesystem]            # stdio
 /// command = "npx"
@@ -170,27 +192,36 @@ pub async fn mcp_toggle(
 /// [mcp_servers.linear]                # streamable_http
 /// url = "https://mcp.linear.app/mcp"
 /// ```
-/// We build a `{ name, config: <McpServerConfig> }` object where `config` is
-/// the transport table with `enabled` set.
-fn build_upsert_payload(server: &McpUpsertRequest) -> Result<serde_json::Value, String> {
-    let mut config = serde_json::Map::new();
+/// NOTE: the wire keys are snake_case (`session_id` / `server_name`) — grok's
+/// request struct has no `rename_all`, unlike `mcp/list` which takes
+/// camelCase `sessionId`.
+fn build_upsert_payload(
+    session_id: &str,
+    server: &McpUpsertRequest,
+) -> Result<serde_json::Value, String> {
+    let mut payload = serde_json::Map::new();
+    payload.insert("session_id".into(), session_id.into());
+    payload.insert("server_name".into(), server.name.clone().into());
     match server.transport.as_str() {
         "stdio" => {
-            config.insert("command".into(), server.target.clone().into());
+            payload.insert("command".into(), server.target.clone().into());
             if !server.args.is_empty() {
-                config.insert(
+                payload.insert(
                     "args".into(),
                     server.args.iter().cloned().map(serde_json::Value::from).collect::<Vec<_>>().into(),
                 );
             }
             if !server.env.is_empty() {
-                config.insert("env".into(), serde_json::to_value(&server.env).unwrap());
+                payload.insert("env".into(), serde_json::to_value(&server.env).unwrap());
             }
         }
         "http" | "streamable_http" | "sse" => {
-            config.insert("url".into(), server.target.clone().into());
+            payload.insert("url".into(), server.target.clone().into());
+            if server.transport == "sse" {
+                payload.insert("type".into(), "sse".into());
+            }
             if !server.headers.is_empty() {
-                config.insert("headers".into(), serde_json::to_value(&server.headers).unwrap());
+                payload.insert("headers".into(), serde_json::to_value(&server.headers).unwrap());
             }
         }
         other => {
@@ -200,9 +231,9 @@ fn build_upsert_payload(server: &McpUpsertRequest) -> Result<serde_json::Value, 
         }
     }
     if let Some(enabled) = server.enabled {
-        config.insert("enabled".into(), enabled.into());
+        payload.insert("enabled".into(), enabled.into());
     }
-    Ok(serde_json::json!({ "name": server.name, "config": config }))
+    Ok(serde_json::Value::Object(payload))
 }
 
 // ---------- standalone mcp.json editor (截图 6 / 7) ----------
@@ -259,11 +290,13 @@ pub async fn mcp_config_read() -> Result<McpConfigFile, String> {
 /// Validate + write the config file, then best-effort mirror each server into
 /// grok so the saved entries connect. Validation failure (invalid JSON / not an
 /// object) aborts *before* writing. Sync failures are logged, not fatal — the
-/// file is the editor's source of truth.
+/// file is the editor's source of truth. `session_id` is required for the live
+/// sync (grok's upsert is session-scoped); without it we only write the file.
 #[tauri::command]
 pub async fn mcp_config_save(
     state: State<'_, AppState>,
     content: String,
+    session_id: Option<String>,
 ) -> Result<(), String> {
     let trimmed = content.trim();
     let parsed: serde_json::Value = if trimmed.is_empty() {
@@ -298,17 +331,18 @@ pub async fn mcp_config_save(
         format!("保存 mcp.json 失败：{e}")
     })?;
 
-    // Best-effort sync into grok (only if the agent is up). Failures are
+    // Best-effort sync into grok (only if the agent is up and we have a live
+    // session — grok's `x.ai/mcp/upsert` is session-scoped). Failures are
     // non-fatal: the file is saved either way and the list view can still
     // toggle/delete individual servers. The lock guard is dropped *before* the
     // await (clone into a local first) so the returned future stays `Send`.
     let tx_opt = state.tx.lock().unwrap().clone();
-    if let Some(tx) = tx_opt {
+    if let (Some(tx), Some(sid)) = (tx_opt, session_id.filter(|s| !s.is_empty())) {
         if let Some(map) = parsed.get("mcpServers").and_then(|v| v.as_object()) {
             for (name, cfg) in map {
                 match json_to_upsert(name, cfg) {
                     Ok(server) => {
-                        let payload = match build_upsert_payload(&server) {
+                        let payload = match build_upsert_payload(&sid, &server) {
                             Ok(p) => p,
                             Err(e) => {
                                 eprintln!("[mcp_config_save] build '{name}' failed: {e}");
@@ -342,11 +376,15 @@ fn json_to_upsert(name: &str, cfg: &serde_json::Value) -> Result<McpUpsertReques
     if let Some(url) = get_str("url") {
         let transport = match obj.get("type").and_then(|v| v.as_str()) {
             Some("sse") => "sse".to_string(),
-            Some("streamable-http") | Some("streamable_http") => "streamable_http".to_string(),
+            Some("streamable-http") | Some("streamable_http") | Some("streamableHttp") => {
+                "streamable_http".to_string()
+            }
             _ => "http".to_string(),
         };
-        let headers = obj
-            .get("headers")
+        // WorkBuddy connector manifests use `staticHeaders` (e.g. kdocs);
+        // standard mcp.json uses `headers`. Merge both, `headers` winning.
+        let mut headers = obj
+            .get("staticHeaders")
             .and_then(|v| v.as_object())
             .map(|m| {
                 m.iter()
@@ -354,6 +392,13 @@ fn json_to_upsert(name: &str, cfg: &serde_json::Value) -> Result<McpUpsertReques
                     .collect::<HashMap<_, _>>()
             })
             .unwrap_or_default();
+        if let Some(m) = obj.get("headers").and_then(|v| v.as_object()) {
+            for (k, v) in m {
+                if let Some(s) = v.as_str() {
+                    headers.insert(k.clone(), s.to_string());
+                }
+            }
+        }
         Ok(McpUpsertRequest {
             name: name.to_string(),
             transport,
@@ -394,4 +439,95 @@ fn json_to_upsert(name: &str, cfg: &serde_json::Value) -> Result<McpUpsertReques
     } else {
         Err("缺少 'command' 或 'url' 字段".to_string())
     }
+}
+
+// ---------- MCP OAuth authorization (x.ai/mcp/auth_*) ----------
+//
+// grok implements the full MCP OAuth flow itself (RFC 9728/8414 discovery,
+// DCR, PKCE, system-browser redirect + loopback callback; tokens persist to
+// `~/.grok/mcp_credentials.json`). We only need to *trigger* it: the browser
+// opens from inside the grok process, and the call resolves when the flow
+// completes — mirroring workbuddy's "跳浏览器授权 + 轮询状态" UX.
+
+/// Result of `x.ai/mcp/auth_trigger`, surfaced to the UI.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAuthTriggerResult {
+    /// "authenticated" | "failed" | "setup_required".
+    pub status: String,
+    /// Failure detail from grok (present when status == "failed").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct McpAuthTriggerWire {
+    status: String,
+    #[serde(default)]
+    error: Option<String>,
+}
+
+/// Kick off the browser OAuth flow for one server. Long-running: resolves
+/// when the user finishes (or abandons) the browser flow. grok opens the
+/// system browser itself (`webbrowser::open` in xai-grok-mcp).
+#[tauri::command]
+pub async fn mcp_auth_trigger(
+    state: State<'_, AppState>,
+    session_id: String,
+    server_name: String,
+) -> Result<McpAuthTriggerResult, String> {
+    let tx = state
+        .tx
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or("agent not initialized")?;
+    let params = raw_params(&serde_json::json!({
+        "session_id": session_id,
+        "server_name": server_name,
+    }));
+    let wire: McpAuthTriggerWire = call_ext(&tx, "x.ai/mcp/auth_trigger", params)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(McpAuthTriggerResult {
+        status: wire.status,
+        error: wire.error,
+    })
+}
+
+/// One entry of `x.ai/mcp/auth_status` — a server grok has flagged as
+/// requiring authorization (status is currently always "needs_auth").
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAuthStatusEntry {
+    /// grok's wire format is snake_case (`server_name`); the frontend gets
+    /// camelCase (`serverName`). Accept both on decode.
+    #[serde(alias = "server_name")]
+    pub server_name: String,
+    pub status: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct McpAuthStatusWire {
+    #[serde(default)]
+    servers: Vec<McpAuthStatusEntry>,
+}
+
+/// List servers that grok has marked `needs_auth` for this session.
+#[tauri::command]
+pub async fn mcp_auth_status(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<Vec<McpAuthStatusEntry>, String> {
+    let tx = state
+        .tx
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or("agent not initialized")?;
+    let params = raw_params(&serde_json::json!({ "session_id": session_id }));
+    let wire: McpAuthStatusWire = call_ext(&tx, "x.ai/mcp/auth_status", params)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(wire.servers)
 }

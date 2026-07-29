@@ -8,6 +8,8 @@ mod agents_store;
 mod automations;
 mod bridge;
 mod commands;
+mod connector_cli;
+mod connectors_catalog;
 mod experts;
 mod ext;
 mod grok;
@@ -20,6 +22,7 @@ mod providers;
 mod sessions;
 mod shell_fs;
 mod skills;
+mod skills_catalog;
 
 use bridge::{Permissions, Questions};
 use commands::AppState;
@@ -88,6 +91,14 @@ pub fn run() {
             mcp::mcp_config_path,
             mcp::mcp_config_read,
             mcp::mcp_config_save,
+            mcp::mcp_auth_trigger,
+            mcp::mcp_auth_status,
+            // CLI-type connector authorization (cli.json driven)
+            connector_cli::connectors_cli_status,
+            connector_cli::connectors_cli_auth,
+            connector_cli::connectors_cli_auth_cancel,
+            connector_cli::connectors_cli_unauth,
+            connector_cli::connectors_cli_skills_dir,
             // experts / assistants (~/.grok/agents/*.md)
             agents_store::agents_list,
             agents_store::agents_get,
@@ -102,6 +113,17 @@ pub fn run() {
             experts::experts_image_bytes,
             experts::experts_read_agent_prompt,
             experts::experts_link_agents,
+            // connector marketplace (live from a local WorkBuddy marketplace dir)
+            connectors_catalog::connectors_default_root,
+            connectors_catalog::connectors_list_roots,
+            connectors_catalog::connectors_load,
+            connectors_catalog::connectors_icon,
+            connectors_catalog::connectors_read_mcp_config,
+            // skill catalog (runtime scan of agents + builtin skill dirs)
+            skills_catalog::skills_catalog_default_root,
+            skills_catalog::skills_catalog_list_roots,
+            skills_catalog::skills_catalog_load,
+            skills_catalog::skills_catalog_read_skill,
             // grok admin: memory / search / rewind / commands / plan / tasks / reload
             grok_admin::memory_list,
             grok_admin::memory_get,

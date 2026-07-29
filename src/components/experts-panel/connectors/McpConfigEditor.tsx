@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeftIcon } from "@/foundation/components/Icon/icons";
 import { mcpConfigPath, mcpConfigRead, mcpConfigSave } from "@/lib/grok-client";
+import { useSessionStore } from "@/stores/session-store";
 
 const EMPTY = "{\n  \"mcpServers\": {}\n}";
 
@@ -61,7 +62,9 @@ export function McpConfigEditor({
     setError("");
     setSaving(true);
     try {
-      await mcpConfigSave(content);
+      // Pass the live session (when any) so grok applies the entries now;
+      // without one the file is still saved for the next sync.
+      await mcpConfigSave(content, useSessionStore.getState().sessionId ?? undefined);
       setOriginal(content);
       onToast?.("已保存，正在同步到 MCP 服务…");
       onSaved?.();

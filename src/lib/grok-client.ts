@@ -15,7 +15,15 @@ import type {
   ExpertCatalog,
   AutomationSnapshot,
   AutomationStatus,
+  ConnectorCatalog,
+  ConnectorCliAuthDoneEvent,
+  ConnectorCliAuthLogEvent,
+  ConnectorCliAuthResult,
+  ConnectorCliAuthUrlEvent,
+  ConnectorCliStatus,
   InspirationStarted,
+  McpAuthStatusEntry,
+  McpAuthTriggerResult,
   McpConfigFile,
   McpServerEntry,
   McpUpsertRequest,
@@ -31,6 +39,7 @@ import type {
   SessionSummaryEvent,
   SessionUpdate,
   SessionUsage,
+  SkillCatalog,
   SkillInfo,
   SlashCommand,
 } from "./types";
@@ -387,24 +396,26 @@ export async function skillsToggle(name: string, enabled: boolean): Promise<void
 
 // ---------- connectors / MCP (x.ai/mcp/*) ----------
 
-/** List configured MCP servers. */
-export async function mcpList(): Promise<McpServerEntry[]> {
-  return invoke<McpServerEntry[]>("mcp_list");
+/** List configured MCP servers. Pass the live sessionId to enrich entries
+ *  with session state (grok's list accepts it optionally). */
+export async function mcpList(sessionId?: string): Promise<McpServerEntry[]> {
+  return invoke<McpServerEntry[]>("mcp_list", { sessionId: sessionId ?? null });
 }
 
-/** Add or update an MCP server. */
-export async function mcpUpsert(server: McpUpsertRequest): Promise<void> {
-  await invoke<void>("mcp_upsert", { server });
+/** Add or update an MCP server. grok's upsert is session-scoped — a live
+ *  sessionId is required. */
+export async function mcpUpsert(sessionId: string, server: McpUpsertRequest): Promise<void> {
+  await invoke<void>("mcp_upsert", { sessionId, server });
 }
 
 /** Delete an MCP server by name. */
-export async function mcpDelete(name: string): Promise<void> {
-  await invoke<void>("mcp_delete", { name });
+export async function mcpDelete(sessionId: string, name: string): Promise<void> {
+  await invoke<void>("mcp_delete", { sessionId, name });
 }
 
 /** Enable or disable an MCP server at runtime. */
-export async function mcpToggle(name: string, enabled: boolean): Promise<void> {
-  await invoke<void>("mcp_toggle", { name, enabled });
+export async function mcpToggle(sessionId: string, name: string, enabled: boolean): Promise<void> {
+  await invoke<void>("mcp_toggle", { sessionId, name, enabled });
 }
 
 /** Resolved absolute path of the standalone mcp.json (for the editor header). */
@@ -417,9 +428,145 @@ export async function mcpConfigRead(): Promise<McpConfigFile> {
   return invoke<McpConfigFile>("mcp_config_read");
 }
 
-/** Validate + write the standalone mcp.json (best-effort syncs into grok). */
-export async function mcpConfigSave(content: string): Promise<void> {
-  await invoke<void>("mcp_config_save", { content });
+/** Validate + write the standalone mcp.json. When a sessionId is given each
+ *  server is also synced live into grok (its upsert is session-scoped). */
+export async function mcpConfigSave(content: string, sessionId?: string): Promise<void> {
+  await invoke<void>("mcp_config_save", { content, sessionId: sessionId ?? null });
+}
+
+// ---------- MCP OAuth authorization (x.ai/mcp/auth_*) ----------
+
+/** Kick off grok's browser OAuth flow for one MCP server. grok opens the
+ *  system browser itself and the call resolves when the flow completes
+ *  (status "authenticated" | "failed" | "setup_required"). */
+export async function mcpAuthTrigger(
+  sessionId: string,
+  serverName: string,
+): Promise<McpAuthTriggerResult> {
+  return invoke<McpAuthTriggerResult>("mcp_auth_trigger", { sessionId, serverName });
+}
+
+/** List servers grok has flagged `needs_auth` for this session. */
+export async function mcpAuthStatus(sessionId: string): Promise<McpAuthStatusEntry[]> {
+  return invoke<McpAuthStatusEntry[]>("mcp_auth_status", { sessionId });
+}
+
+// ---------- CLI-type connector authorization (cli.json driven) ----------
+
+/** Probe a CLI connector: has cli.json / CLI installed / currently authed. */
+export async function connectorsCliStatus(
+  root: string,
+  source: string,
+): Promise<ConnectorCliStatus> {
+  return invoke<ConnectorCliStatus>("connectors_cli_status", { root, source });
+}
+
+/** Run the full CLI authorization flow (install → auth steps → verify).
+ *  Long-running; auth URLs arrive via `onConnectorCliAuthUrl`. */
+export async function connectorsCliAuth(
+  root: string,
+  source: string,
+): Promise<ConnectorCliAuthResult> {
+  return invoke<ConnectorCliAuthResult>("connectors_cli_auth", { root, source });
+}
+
+/** Cancel an in-flight CLI authorization (kills the child process tree). */
+export async function connectorsCliAuthCancel(source: string): Promise<void> {
+  await invoke<void>("connectors_cli_auth_cancel", { source });
+}
+
+/** Run the connector's unAuth command (logout / credential wipe). */
+export async function connectorsCliUnauth(root: string, source: string): Promise<void> {
+  await invoke<void>("connectors_cli_unauth", { root, source });
+}
+
+/** Absolute path of the connector's bundled skills/ dir (null if none). */
+export async function connectorsCliSkillsDir(
+  root: string,
+  source: string,
+): Promise<string | null> {
+  return invoke<string | null>("connectors_cli_skills_dir", { root, source });
+}
+
+/** Subscribe to CLI auth URL events (show QR / open browser). */
+export function onConnectorCliAuthUrl(
+  cb: (e: ConnectorCliAuthUrlEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<ConnectorCliAuthUrlEvent>("connector://cli-auth-url", (ev) => cb(ev.payload));
+}
+
+/** Subscribe to CLI auth log lines (progress display in the QR modal). */
+export function onConnectorCliAuthLog(
+  cb: (e: ConnectorCliAuthLogEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<ConnectorCliAuthLogEvent>("connector://cli-auth-log", (ev) => cb(ev.payload));
+}
+
+/** Subscribe to CLI auth completion events. */
+export function onConnectorCliAuthDone(
+  cb: (e: ConnectorCliAuthDoneEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<ConnectorCliAuthDoneEvent>("connector://cli-auth-done", (ev) => cb(ev.payload));
+}
+
+// ---------- connector marketplace (live local data dir) ----------
+
+/** First existing candidate marketplace root ("" if none found). */
+export async function connectorsDefaultRoot(): Promise<string> {
+  return invoke<string>("connectors_default_root");
+}
+
+/** Marketplace roots under `root` that contain the connectors manifest. */
+export async function connectorsListRoots(root: string): Promise<string[]> {
+  return invoke<string[]>("connectors_list_roots", { root });
+}
+
+/** Load categories + connectors from the marketplace manifest. */
+export async function connectorsLoad(root?: string): Promise<ConnectorCatalog> {
+  return invoke<ConnectorCatalog>("connectors_load", { root: root ?? null });
+}
+
+/** Read a local icon file as a `data:` URL (svg/png). */
+export async function connectorsIcon(path: string): Promise<string> {
+  return invoke<string>("connectors_icon", { path });
+}
+
+/** Read `<root>/connectors/<source>/mcp.json` raw text ("" if missing). */
+export async function connectorsReadMcpConfig(root: string, source: string): Promise<string> {
+  return invoke<string>("connectors_read_mcp_config", { root, source });
+}
+
+/** Open a URL in the system browser (scheme-whitelisted backend command). */
+export async function openUrl(url: string): Promise<void> {
+  await invoke<void>("open_url", { url });
+}
+
+// ---------- skill catalog (runtime scan of agents + builtin dirs) ----------
+
+/** First existing candidate agents data root ("" if none found). */
+export async function skillsCatalogDefaultRoot(): Promise<string> {
+  return invoke<string>("skills_catalog_default_root");
+}
+
+/** Agents roots under `root` that look scannable. */
+export async function skillsCatalogListRoots(root: string): Promise<string[]> {
+  return invoke<string[]>("skills_catalog_list_roots", { root });
+}
+
+/** Scan both sources and return the merged, deduped skill catalog. */
+export async function skillsCatalogLoad(
+  root?: string,
+  builtinRoot?: string,
+): Promise<SkillCatalog> {
+  return invoke<SkillCatalog>("skills_catalog_load", {
+    root: root ?? null,
+    builtinRoot: builtinRoot ?? null,
+  });
+}
+
+/** Read the full SKILL.md text for a directory. */
+export async function skillsCatalogReadSkill(dir: string): Promise<string> {
+  return invoke<string>("skills_catalog_read_skill", { dir });
 }
 
 // ---------- expert marketplace (live local data dir) ----------

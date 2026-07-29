@@ -337,6 +337,63 @@ export interface McpUpsertRequest {
   enabled?: boolean;
 }
 
+/** Result of `mcp_auth_trigger` (browser OAuth flow driven by grok). */
+export interface McpAuthTriggerResult {
+  /** "authenticated" | "failed" | "setup_required". */
+  status: string;
+  error?: string;
+}
+
+/** One entry of `mcp_auth_status` — a server grok flagged as needing auth. */
+export interface McpAuthStatusEntry {
+  serverName: string;
+  status: string;
+}
+
+// ---------- CLI-type connector authorization (cli.json driven) ----------
+
+/** Probe result for a CLI connector (`connectors_cli_status`). */
+export interface ConnectorCliStatus {
+  hasSpec: boolean;
+  /** versionCheck passed (CLI installed & new enough). */
+  installed: boolean;
+  cliVersion?: string;
+  /** status command matches the authed pattern. */
+  authed: boolean;
+  /** UI hint: show the auth URL as a QR code. */
+  qrModal: boolean;
+  error?: string;
+}
+
+/** Result of the CLI authorization flow (`connectors_cli_auth`). */
+export interface ConnectorCliAuthResult {
+  ok: boolean;
+  authed: boolean;
+  error?: string;
+}
+
+/** `connector://cli-auth-url` event payload. */
+export interface ConnectorCliAuthUrlEvent {
+  source: string;
+  url: string;
+  qrModal: boolean;
+  suppressBrowser: boolean;
+}
+
+/** `connector://cli-auth-log` event payload (CLI stdout/stderr tail). */
+export interface ConnectorCliAuthLogEvent {
+  source: string;
+  line: string;
+}
+
+/** `connector://cli-auth-done` event payload. */
+export interface ConnectorCliAuthDoneEvent {
+  source: string;
+  ok: boolean;
+  authed: boolean;
+  error?: string;
+}
+
 // ---------- experts / assistants (~/.grok/agents/*.md) ----------
 
 /** One agent definition (subagent template). */
@@ -618,6 +675,104 @@ export interface AutomationRunRecord {
 export interface AutomationSnapshot {
   automations: Automation[];
   records: AutomationRunRecord[];
+}
+
+// ---------- connector marketplace (read live from a local data dir) ----------
+
+/** One connector category chip (mirrors the Rust `ConnectorCategory`). */
+export interface ConnectorCategory {
+  id: string;
+  zh: string;
+}
+
+/** One connector card (mirrors the Rust `ConnectorItem`, camelCase). */
+export interface ConnectorItem {
+  id: string;
+  name: string;
+  nameEn?: string;
+  desc: string;
+  descEn?: string;
+  /** Directory key — locates `icons/<source>.*` and `connectors/<source>/mcp.json`. */
+  source: string;
+  /** "mcp" | "cli" | "skill-only" | "unknown". */
+  kind: string;
+  /** "token" | "server-side" | "oneid-token" | undefined. */
+  authMode?: string;
+  /** Example prompts (zh). */
+  examplesZh: string[];
+  /** Derived category id. */
+  cat: string;
+  /** Absolute local icon path — feed to `connectorsIcon`. */
+  iconLocal?: string;
+  /** Token-authorization form schema (token-mode connectors only). */
+  tokenSchema?: TokenSchema;
+}
+
+/** One field in a token-schema form (mirrors Rust `TokenField`). */
+export interface TokenField {
+  /** Env-var name the value is injected as (e.g. `WENDAO_API_KEY`). */
+  key: string;
+  label?: string;
+  /** "password" → masked input; otherwise plain text. */
+  type?: string;
+  required?: boolean;
+  placeholder?: string;
+  description?: string;
+}
+
+/** The `token-schema.json` payload (mirrors Rust `TokenSchema`). */
+export interface TokenSchema {
+  title?: string;
+  description?: string;
+  docUrl?: string;
+  docLabel?: string;
+  fields: TokenField[];
+}
+
+/** Catalog payload returned by `connectors_load`. */
+export interface ConnectorCatalog {
+  root: string;
+  categories: ConnectorCategory[];
+  connectors: ConnectorItem[];
+}
+
+// ---------- skill catalog (runtime scan of agents + builtin dirs) ----------
+
+/** One skill category chip (mirrors the Rust `SkillCategory`). */
+export interface SkillCategory {
+  id: string;
+  zh: string;
+}
+
+/** One skill card (mirrors the Rust `SkillItem`, camelCase). */
+export interface SkillItem {
+  /** Skill name from frontmatter (falls back to the directory name). */
+  id: string;
+  name: string;
+  desc: string;
+  descEn?: string;
+  version?: string;
+  whenToUse?: string;
+  /** Absolute directory containing the SKILL.md. */
+  sourceDir: string;
+  /** "connector" (from a connector package) | "builtin". */
+  origin: "connector" | "builtin";
+  /** Owning connector source name (connector origin only). */
+  plugin?: string;
+  /** Absolute local icon path (connector skills) — feed to `connectorsIcon`. */
+  iconLocal?: string;
+  /** Derived category id. */
+  cat: string;
+  /** Built-in skills are featured (精选). */
+  featured?: boolean;
+}
+
+/** Catalog payload returned by `skills_catalog_load`. */
+export interface SkillCatalog {
+  root: string;
+  builtinRoot: string;
+  categories: SkillCategory[];
+  skills: SkillItem[];
 }
 
 // ---------- unified market catalogs (built-in static data) ----------

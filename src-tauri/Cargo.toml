@@ -24,6 +24,8 @@ serde_json = "1"
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"
 uuid = { version = "1", features = ["v7"] }
+# statusMatch patterns in connector cli.json files (CLI connector auth).
+regex = "1"
 
 # grok in-process integration. grok-build is pinned as a git submodule at
 # <repo>/vendor/grok-build (see .gitmodules); these are relative path deps
