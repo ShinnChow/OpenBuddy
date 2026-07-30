@@ -47,6 +47,11 @@ import { useProjectsStore, type ProjectMeta } from "./stores/projects-store";
 import { useMessageQueueStore, hasActiveItems } from "./stores/message-queue-store";
 import { recordUsage, loadUsage, loadQuotaConfig } from "./lib/usage-quota";
 import { dispatchNotification } from "./lib/notify-channels";
+import {
+  registerTelemetryProvider,
+  createConsoleTelemetryProvider,
+  reportEvent,
+} from "./lib/telemetry-contract";
 import { IS_MACOS } from "./lib/platform";
 
 /** Hidden markers wrapping the expert persona in the text sent to grok.
@@ -146,6 +151,14 @@ function Shell() {
   useEffect(() => {
     let unlisten: (() => void) | null = null;
 
+    // 注册遥测 console provider(Aegis 替代),启动时一次。
+    registerTelemetryProvider(
+      createConsoleTelemetryProvider({
+        sink: (e) => console.debug(`[telemetry] ${e.level.toUpperCase()} ${e.name}`, e.props ?? ""),
+      }),
+    );
+    reportEvent("app_started", "info");
+
     // 尝试自动激活 @anthropic-ai/sandbox-runtime(装好包后零改动生效)。
     // 非阻塞:失败(包未安装)静默降级为纯逻辑守卫。
     void import("@/lib/sandbox-init")
@@ -177,6 +190,7 @@ function Shell() {
           },
           onPermission: (p) => {
             console.log('[OpenBuddy] Received grok://permission:', p);
+            reportEvent("permission_request", "warn", { sessionId: p.sessionId });
             permissionStore.getState().request(p);
             void notificationAppend(
               "permission",
@@ -188,6 +202,7 @@ function Shell() {
           },
           onComplete: (p) => {
             console.log('[OpenBuddy] Received grok://complete:', p);
+            reportEvent("session_complete", "info", { sessionId: p.sessionId, stopReason: p.stopReason });
             // Ignore completes for side-channel sessions (inspiration generation)
             // — they're handled by their own listeners, not the main transcript.
             const currentSessionId = sessionStore.getState().sessionId;
