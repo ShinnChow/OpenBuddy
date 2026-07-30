@@ -1,6 +1,7 @@
 import type { ToolCallView } from "@/stores/session-store";
 import type { DiffContent, CommandOutputContent } from "@/lib/types";
 import { checkCommandRisk, riskLabel } from "@/lib/command-risk";
+import { precheckCommand } from "@/lib/sandbox-guard";
 import {
   detectToolRenderer,
   rendererLabel,
@@ -168,18 +169,32 @@ export function ToolCallDetailBody({
  */
 function CommandRiskBadge({ command }: { command: string }) {
   const risk = checkCommandRisk(command);
-  if (risk.level === "low") return null;
-  const cls = risk.level === "high" ? "cmd-risk cmd-risk--high" : "cmd-risk cmd-risk--medium";
-  const reasons = risk.reasons.length > 0 ? `\n原因:${risk.reasons.join("; ")}` : "";
-  return (
-    <span
-      className={cls}
-      role="status"
-      title={`⚠️ ${riskLabel(risk.level)}命令${reasons}`}
-    >
-      ⚠️ {riskLabel(risk.level)}
-    </span>
-  );
+  // Sandbox path guard (tsbx alternative): check if command accesses protected paths.
+  const sandboxCheck = precheckCommand(command);
+  const hasRisk = risk.level !== "low";
+  const hasSandboxDeny = sandboxCheck.action === "deny";
+
+  if (!hasRisk && !hasSandboxDeny) return null;
+
+  const badges: React.ReactNode[] = [];
+  if (hasRisk) {
+    const cls = risk.level === "high" ? "cmd-risk cmd-risk--high" : "cmd-risk cmd-risk--medium";
+    const reasons = risk.reasons.length > 0 ? `\n原因:${risk.reasons.join("; ")}` : "";
+    badges.push(
+      <span key="risk" className={cls} role="status" title={`⚠️ ${riskLabel(risk.level)}命令${reasons}`}>
+        ⚠️ {riskLabel(risk.level)}
+      </span>,
+    );
+  }
+  if (hasSandboxDeny) {
+    badges.push(
+      <span key="sandbox" className="cmd-risk cmd-risk--high" role="status"
+        title={`🛡️ 路径受保护:${sandboxCheck.reason} (${sandboxCheck.target})`}>
+        🛡️ 受保护路径
+      </span>,
+    );
+  }
+  return <>{badges}</>;
 }
 
 function DiffView({
