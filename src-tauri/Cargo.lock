@@ -6796,10 +6796,12 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "dirs 6.0.0",
+ "futures",
  "image",
  "open",
  "regex",
  "reqwest 0.12.28",
+ "schemars 1.2.1",
  "serde",
  "serde_json",
  "tauri",
@@ -6814,6 +6816,10 @@ dependencies = [
  "uuid",
  "xai-acp-lib",
  "xai-grok-shell",
+ "xai-grok-tools",
+ "xai-tool-protocol",
+ "xai-tool-runtime",
+ "xai-tool-types",
 ]
 
 [[package]]

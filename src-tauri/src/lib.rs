@@ -23,6 +23,7 @@ mod sessions;
 mod shell_fs;
 mod skills;
 mod skills_catalog;
+mod team_tools;
 
 use bridge::{Permissions, Questions};
 use commands::AppState;

@@ -58,6 +58,12 @@ pub struct GrokHandle {
 /// an empty `RemoteSettings` so bootstrap treats remote config as already
 /// supplied and never opens the network path.
 pub fn spawn_grok(_cwd: PathBuf) -> Result<GrokHandle> {
+    // 0. Register OpenBuddy custom tools (create_team, team_status, team_delete).
+    //    MUST run before the first ToolRegistryBuilder::new() (which happens
+    //    inside bootstrap below). register_tool_pack is idempotent-safe if
+    //    called multiple times (spawn_grok can be called again on restart).
+    crate::team_tools::register_team_tools();
+
     // 1. Load + resolve config (~/.grok/config.toml; defaults if absent).
     let raw = load_effective_config().map_err(|e| anyhow!("load config: {e}"))?;
     let mut cfg = AgentConfig::new_from_toml_cfg(&raw).map_err(|e| anyhow!("parse config: {e}"))?;
