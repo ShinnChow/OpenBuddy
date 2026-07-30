@@ -553,13 +553,18 @@ pub async fn experts_read_agent_prompt(
             .map_err(|e| format!("读取 agent prompt 失败：{e}"));
     }
 
-    // Fallback: scan agents/ for any .md file (pick the first one).
+    // Fallback: try case-insensitive match on the filename stem.
     if let Ok(entries) = std::fs::read_dir(&agents_dir) {
+        let target_lower = agent_name.to_lowercase();
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("md") {
-                return std::fs::read_to_string(&path)
-                    .map_err(|e| format!("读取 agent prompt 失败：{e}"));
+                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                    if stem.to_lowercase() == target_lower {
+                        return std::fs::read_to_string(&path)
+                            .map_err(|e| format!("读取 agent prompt 失败：{e}"));
+                    }
+                }
             }
         }
     }
@@ -624,8 +629,8 @@ pub async fn experts_link_agents(
         if should_copy {
             std::fs::copy(&src, &dst)
                 .map_err(|e| format!("复制 {} 失败：{e}", filename.to_string_lossy()))?;
+            count += 1;
         }
-        count += 1;
     }
     Ok(count)
 }

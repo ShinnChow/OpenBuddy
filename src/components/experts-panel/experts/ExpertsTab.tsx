@@ -196,8 +196,13 @@ export function ExpertsTab({ pills, onGoHome, onToast }: Props) {
           const afterOpen = trimmed.indexOf("\n");
           if (afterOpen !== -1) {
             const rest = trimmed.slice(afterOpen + 1);
-            const closeIdx = rest.search(/\n---\s*(\n|$)/);
-            fullPrompt = closeIdx !== -1 ? rest.slice(closeIdx).replace(/^\n---\s*/, "").trim() : raw.trim();
+            const closeMatch = rest.match(/\n---\s*(\n|$)/);
+            if (closeMatch && closeMatch.index !== undefined) {
+              // Body starts AFTER the closing --- fence (index + full match length).
+              fullPrompt = rest.slice(closeMatch.index + closeMatch[0].length).trim();
+            } else {
+              fullPrompt = raw.trim();
+            }
           } else {
             fullPrompt = raw.trim();
           }
@@ -209,8 +214,16 @@ export function ExpertsTab({ pills, onGoHome, onToast }: Props) {
 
     // For team experts: link member agents into ~/.grok/agents/ so grok's
     // Task tool can spawn them by bare name during multi-agent orchestration.
+    // MUST be awaited — grok scans ~/.grok/agents/ at session start, so if the
+    // copy hasn't finished when the user sends their first message, the member
+    // agents won't be discoverable.
     if (expert.type === "team" && expert.plugin && root) {
-      expertsLinkAgents(root, expert.plugin).catch(() => { /* best-effort */ });
+      try {
+        const linked = await expertsLinkAgents(root, expert.plugin);
+        onToast?.(`专家团已就绪：${linked} 名成员已链接`);
+      } catch (e) {
+        onToast?.(`专家团成员链接失败：${String(e).replace(/^Error:\s*/, "")}`);
+      }
     }
 
     const name = expert.title || expert.name;
@@ -237,8 +250,10 @@ export function ExpertsTab({ pills, onGoHome, onToast }: Props) {
       const afterOpen = trimmed.indexOf("\n");
       if (afterOpen !== -1) {
         const rest = trimmed.slice(afterOpen + 1);
-        const closeIdx = rest.search(/\n---\s*(\n|$)/);
-        if (closeIdx !== -1) body = rest.slice(closeIdx).replace(/^\n---\s*/, "").trim();
+        const closeMatch = rest.match(/\n---\s*(\n|$)/);
+        if (closeMatch && closeMatch.index !== undefined) {
+          body = rest.slice(closeMatch.index + closeMatch[0].length).trim();
+        }
       }
     }
     setPendingExpert({
