@@ -45,6 +45,8 @@ import {
 import type { AgentEntry } from "./lib/types";
 import { useProjectsStore, type ProjectMeta } from "./stores/projects-store";
 import { useMessageQueueStore, hasActiveItems } from "./stores/message-queue-store";
+import { recordUsage, loadUsage, loadQuotaConfig } from "./lib/usage-quota";
+import { dispatchNotification } from "./lib/notify-channels";
 import { IS_MACOS } from "./lib/platform";
 
 /** Hidden markers wrapping the expert persona in the text sent to grok.
@@ -195,6 +197,15 @@ function Shell() {
             sessionStore.getState().markComplete(p);
             // Update sidebar status so the task filter reflects the completion.
             sessionsStore.getState().upsert({ sessionId: p.sessionId, status: "completed" });
+            // Record token usage for the quota dashboard (weixinpay alternative).
+            if (p.usage && (p.usage.promptTokens || p.usage.completionTokens)) {
+              const currentModel = sessionStore.getState().sessionId;
+              recordUsage(loadUsage(), {
+                modelId: currentModel ?? "unknown",
+                promptTokens: p.usage.promptTokens ?? 0,
+                completionTokens: p.usage.completionTokens ?? 0,
+              }, loadQuotaConfig() ?? undefined);
+            }
             // Refresh the composer context-usage pill after each turn.
             void notificationAppend(
               "session_complete",
@@ -203,6 +214,13 @@ function Shell() {
               p.sessionId,
               "info",
             );
+            // Dispatch to external notification channels (IM alternative: Slack/Discord/webhook/email).
+            void dispatchNotification({
+              title: "OpenBuddy 会话完成",
+              body: `会话 ${p.sessionId.slice(0, 8)} 已完成（${p.stopReason ?? "end_turn"}）`,
+              level: "info",
+              sessionId: p.sessionId,
+            }).catch(() => { /* notification dispatch failure is non-fatal */ });
             // 消息队列自动续发(对齐 WorkBuddy message-queue):该会话若有 active
             // 队列项,取下一条继续发送,实现「回完一条自动发下一条」。
             const q = useMessageQueueStore.getState().getQueue(p.sessionId);
