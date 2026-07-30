@@ -51,7 +51,9 @@ import {
   registerTelemetryProvider,
   createConsoleTelemetryProvider,
   reportEvent,
+  type TelemetryProvider,
 } from "./lib/telemetry-contract";
+import { exportEventsBatch, type OtlpConfig } from "./lib/otlp-exporter";
 import { IS_MACOS } from "./lib/platform";
 
 /** Hidden markers wrapping the expert persona in the text sent to grok.
@@ -157,6 +159,18 @@ function Shell() {
         sink: (e) => console.debug(`[telemetry] ${e.level.toUpperCase()} ${e.name}`, e.props ?? ""),
       }),
     );
+    // 若用户配置了 OTLP endpoint,额外注册 OTLP 导出 provider(自托管监控)。
+    const otlpEndpoint = typeof localStorage !== "undefined" ? localStorage.getItem("openbuddy.otlp.endpoint") : null;
+    if (otlpEndpoint) {
+      const otlpConfig: OtlpConfig = { endpoint: otlpEndpoint, serviceName: "openbuddy" };
+      const otlpProvider: TelemetryProvider = {
+        id: "otlp",
+        isEnabled: () => true,
+        reportEvent: (e) => { void exportEventsBatch([e], otlpConfig, { post: async () => ({ ok: true, status: 200 }) }); },
+        reportMetric: () => {},
+      };
+      registerTelemetryProvider(otlpProvider);
+    }
     reportEvent("app_started", "info");
 
     // 尝试自动激活 @anthropic-ai/sandbox-runtime(装好包后零改动生效)。
