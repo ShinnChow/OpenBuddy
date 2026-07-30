@@ -1,8 +1,10 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { Markdown, type MarkdownConfig } from "./markdown/index";
 import { ToolCallCard } from "./ToolCallCard";
 import { LoadingRow } from "./LoadingRow";
+import { FeedbackDialog } from "./FeedbackDialog";
 import { useTheme } from "./ThemeProvider";
+import { useFeedbackStore, type FeedbackRating } from "@/stores/feedback-store";
 import type { ChatMessage, ToolCallView } from "@/stores/session-store";
 import { EXPERT_PERSONA_BEGIN, EXPERT_PERSONA_END } from "@/App";
 
@@ -30,6 +32,7 @@ export function MessageItem({
   message,
   streaming,
   markdownConfig,
+  sessionId,
   onOpenTool,
   onEditResend,
   onRetry,
@@ -40,6 +43,8 @@ export function MessageItem({
   markdownConfig?: MarkdownConfig;
   /** @deprecated kept for call-site compatibility; unused after compact tools. */
   cwd?: string;
+  /** Current session id — needed to key feedback entries. */
+  sessionId?: string;
   onToast?: (msg: string) => void;
   /** Open tool detail in the right-side panel (Phase 2). */
   onOpenTool?: (tc: ToolCallView) => void;
@@ -151,6 +156,9 @@ export function MessageItem({
                   重试
                 </button>
               )}
+              {sessionId && (
+                <FeedbackButtons sessionId={sessionId} messageId={message.id} />
+              )}
             </div>
           )}
         </div>
@@ -207,5 +215,75 @@ export function MessageItem({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * 反馈按钮(👍/👎)—— 对齐 WorkBuddy message-feedback。
+ *
+ * 本地持久化(toggle:再点同向取消)。无后端上报(OpenBuddy 是 BYOK,无可上报通道)。
+ * 选中的方向高亮(填充),未选中保持描边。
+ */
+function FeedbackButtons({
+  sessionId,
+  messageId,
+}: {
+  sessionId: string;
+  messageId: string;
+}) {
+  const entry = useFeedbackStore(
+    (s) => s.entries[`${sessionId}:${messageId}`] ?? null,
+  );
+  const setRating = useFeedbackStore((s) => s.setRating);
+  const current = entry?.rating ?? null;
+  // 点赞/踩:记录方向并打开完整评分弹窗(对齐 WorkBuddy rating bar + 弹窗)。
+  const [dialogOpen, setDialogOpen] = useState<FeedbackRating | null>(null);
+  const click = (r: FeedbackRating) => {
+    // 再点已选中方向 → 取消(不弹窗)。
+    if (current === r) {
+      setRating(sessionId, messageId, r);
+      return;
+    }
+    setRating(sessionId, messageId, r);
+    setDialogOpen(r);
+  };
+  return (
+    <span className="msg__feedback">
+      <button
+        type="button"
+        className={
+          "msg__action-btn msg__feedback-btn" +
+          (current === "up" ? " msg__feedback-btn--active" : "")
+        }
+        onClick={() => click("up")}
+        title={current === "up" ? "取消赞" : "赞"}
+        aria-label="赞"
+        aria-pressed={current === "up"}
+      >
+        👍
+      </button>
+      <button
+        type="button"
+        className={
+          "msg__action-btn msg__feedback-btn" +
+          (current === "down" ? " msg__feedback-btn--active" : "")
+        }
+        onClick={() => click("down")}
+        title={current === "down" ? "取消踩" : "踩"}
+        aria-label="踩"
+        aria-pressed={current === "down"}
+      >
+        👎
+      </button>
+      {dialogOpen && (
+        <FeedbackDialog
+          open={dialogOpen !== null}
+          sessionId={sessionId}
+          messageId={messageId}
+          rating={dialogOpen}
+          onClose={() => setDialogOpen(null)}
+        />
+      )}
+    </span>
   );
 }

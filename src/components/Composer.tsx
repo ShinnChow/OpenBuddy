@@ -1,14 +1,38 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Mic, X, type LucideIcon } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { ChevronDownIcon, SendPlaneIcon } from "@/foundation/components/Icon/icons";
 import { ModelSelector, type ModelOption } from "./ModelSelector";
 import { ThumbImg } from "./experts-panel/shared/ThumbImg";
 import { ContextUsagePill } from "./ContextUsagePill";
+import { estimateSendCost } from "@/lib/token-estimate";
+import {
+  blocks,
+  assemblePrompt,
+  blockLabel,
+} from "@/lib/content-blocks";
+import {
+  createInputHistory,
+  pushHistory,
+  navigateHistory,
+  type InputHistory,
+} from "@/lib/input-history";
 import { WorkspacePicker } from "./WorkspacePicker";
 import { PermissionPicker } from "./PermissionPicker";
 import { SlashCommands } from "./SlashCommands";
 import { InputAddMenu } from "./InputAddMenu";
+import {
+  collectDroppedPaths,
+  isDragHovering,
+  isDragDrop,
+  type DragDropEvent,
+} from "@/lib/drop-utils";
+import {
+  registerAsrProvider,
+  getActiveAsr,
+  createWebSpeechAsrProvider,
+} from "@/lib/voice-contract";
 import type { HomeModeId } from "./home-scenes";
 import type { AgentEntry } from "@/lib/types";
 import type { WorkspaceInfo } from "@/lib/grok-client";
@@ -58,6 +82,9 @@ export function Composer({
   onSelectExpert,
   onSelectSkill,
   onNavigateConnectors,
+  /** 流式时把「发送」改为「加入待发送队列」(对齐 WorkBuddy message-queue)。
+   *  传入后:流式且文本非空时,在停止按钮左侧显示「入队」按钮。 */
+  onEnqueue,
   /** Name of the expert currently bound to this session (shown as badge in footer). */
   activeExpertName,
   /** Local avatar path for the expert badge. */
@@ -121,6 +148,8 @@ export function Composer({
   onSelectSkill?: (skillName: string) => void;
   /** 加号菜单:跳转到连接器管理面板。 */
   onNavigateConnectors?: () => void;
+  /** 流式时把「发送」改为「加入待发送队列」(对齐 WorkBuddy message-queue)。 */
+  onEnqueue?: (text: string) => void;
   /** Name of the expert currently bound to this session (shown as badge in footer). */
   activeExpertName?: string;
   /** Local avatar path for the expert badge. */
@@ -132,6 +161,26 @@ export function Composer({
 }) {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<string[]>([]);
+  // 发送前成本预估(对齐 WorkBuddy credit-estimate):纯本地 token 估算。
+  // ctxUsed/ctxTotal 由 ContextUsagePill 异步获取,这里不耦合;徽章在占比未知时
+  // 仍显示 +N(新增 token),有占比信息时叠加(此处保守不取,避免与 pill 抢请求)。
+  const cost = useMemo(() => estimateSendCost(text), [text]);
+  // 输入历史(arrow-key recall,对齐 WorkBuddy use-input-history):内存中按发送追加,
+  // ↑/↓ 在输入框回溯。draftRef 暂存「回到输入框」时恢复的草稿。
+  const histRef = useRef<InputHistory>(createInputHistory(50));
+  const histCursorRef = useRef<number>(0);
+  const draftRef = useRef<string>("");
+  // 多块提示预览(对齐 WorkBuddy content-blocks):把当前引用(expert/attachments/
+  // sceneTag)组装成块,显示为 chip 行 + 组装后的预览(便于用户确认最终发送内容)。
+  const blockList = useMemo(() => {
+    const list = [];
+    if (activeExpertName) list.push(blocks.expert({ name: activeExpertName, path: "", scope: "local", raw: "" }));
+    if (sceneTag) list.push(blocks.skill(sceneTag.label));
+    for (const p of attachments) list.push(blocks.file(p));
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeExpertName, sceneTag, attachments]);
+  const hasRefs = blockList.length > 0;
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<VoiceRecognition | null>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -202,6 +251,43 @@ export function Composer({
   const toggleVoice = () => {
     if (listening) {
       recognitionRef.current?.stop();
+      return;
+    }
+    // 优先走 provider-agnostic 注册表(对齐 WorkBuddy asr:* 契约):外部 provider
+    // 注册后优先级更高,否则回落到内建 Web Speech。
+    ensureWebSpeechAsrRegistered();
+    const provider = getActiveAsr();
+    if (provider) {
+      let finalText = "";
+      const stop = provider.listen("zh-CN", {
+        onInterim: (interim) => {
+          updateText((prev) => {
+            const base = finalText || prev;
+            return interim ? base + interim : base;
+          });
+        },
+        onFinal: (text) => {
+          finalText += text;
+          updateText((prev) => (finalText ? finalText : prev));
+        },
+        onError: (reason) => {
+          setListening(false);
+          const msg = reason === "not-allowed"
+            ? "未授予麦克风权限"
+            : `语音识别错误：${reason}`;
+          onToast?.(msg);
+        },
+        onEnd: () => setListening(false),
+      });
+      // 用 recognitionRef 持有 stop 句柄,与既有「再次点击停止」逻辑兼容。
+      recognitionRef.current = {
+        lang: "zh-CN",
+        interimResults: true,
+        continuous: false,
+        start: () => {},
+        stop,
+      } as VoiceRecognition;
+      setListening(true);
       return;
     }
     const Ctor = getSpeechRecognitionCtor();
@@ -275,7 +361,25 @@ export function Composer({
     }
     console.log('Sending:', body || '(empty message)');
     onSend(body || "你好");
+    // 记入输入历史(arrow-key recall)。
+    if (body && body.trim()) {
+      histRef.current = pushHistory(histRef.current, body);
+      histCursorRef.current = histRef.current.items.length;
+      draftRef.current = "";
+    }
     updateText(""); // 发送后清空输入框,同时把草稿也清掉(否则切回还会带回来)。
+    setAttachments([]);
+    onClearSceneTag?.();
+  };
+
+  /** 流式时入队(对齐 WorkBuddy message-queue):文本非空才入队。 */
+  const enqueue = () => {
+    const t = text.trim();
+    if (!t || disabled || !apiReady) return;
+    let body = t;
+    if (sceneTag) body = body ? `【${sceneTag.label}】${body}` : `【${sceneTag.label}】`;
+    onEnqueue?.(body);
+    updateText("");
     setAttachments([]);
     onClearSceneTag?.();
   };
@@ -294,6 +398,62 @@ export function Composer({
       // dialog plugin not available in non-Tauri env (vitest) — no-op.
     }
   };
+
+  // ---------- 拖拽文件附件(对齐 WorkBuddy drop-zone)----------
+  // Tauri webview 的 DOM onDrop 拿不到本地文件绝对路径(只给 File blob),
+  // 必须用原生 drag-drop 事件。enter/over 显示遮罩;drop 收集路径并入附件;
+  // leave 隐藏遮罩。非 Tauri 环境(vitest)getCurrentWebview 会抛错,安全降级。
+  const [dragActive, setDragActive] = useState(false);
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+    try {
+      const webview = getCurrentWebview();
+      webview
+        .onDragDropEvent((event) => {
+          // Tauri 把 DragDropEvent 包在 Event<T>.payload 里。
+          const e = event.payload as DragDropEvent;
+          if (isDragDrop(e)) {
+            const incoming = collectDroppedPaths(e.paths);
+            if (incoming.length > 0) {
+              setAttachments((prev) => {
+                const seen = new Set(prev);
+                const out = [...prev];
+                for (const p of incoming) {
+                  if (!seen.has(p)) {
+                    seen.add(p);
+                    out.push(p);
+                  }
+                }
+                return out;
+              });
+            }
+            setDragActive(false);
+          } else {
+            setDragActive(isDragHovering(e));
+          }
+        })
+        .then((un) => {
+          if (cancelled) {
+            // 组件已卸载,立刻解绑。
+            try { un(); } catch { /* noop */ }
+          } else {
+            unlisten = un;
+          }
+        })
+        .catch(() => {
+          /* 非 Tauri 环境无此事件 — 静默降级 */
+        });
+    } catch {
+      /* getCurrentWebview 在非 Tauri 环境抛错 — 静默降级 */
+    }
+    return () => {
+      cancelled = true;
+      if (unlisten) {
+        try { unlisten(); } catch { /* noop */ }
+      }
+    };
+  }, []);
 
   const ph = (label: string) => onPlaceholder?.(label);
 
@@ -349,6 +509,24 @@ export function Composer({
         {!apiReady && (
           <div className="wb-composer__setup-hint" role="button" tabIndex={0}>
             请先配置 API Key 开始使用
+          </div>
+        )}
+
+        {/* 拖拽文件落区遮罩(对齐 WorkBuddy drop-zone) */}
+        {dragActive && (
+          <div className="wb-composer__dropzone" role="status" aria-live="polite">
+            <span className="wb-composer__dropzone-text">松开以添加文件到对话</span>
+          </div>
+        )}
+
+        {/* 多块提示预览(对齐 WorkBuddy content-blocks):引用块 chip 行 */}
+        {hasRefs && (
+          <div className="composer-blocks" title={assemblePrompt(blockList)}>
+            {blockList.map((b) => (
+              <span key={b.id} className="composer-blocks__chip">
+                {blockLabel(b)}
+              </span>
+            ))}
           </div>
         )}
 
@@ -413,6 +591,8 @@ export function Composer({
           onChange={(e) => {
             updateText(e.target.value);
             setCursorPos(e.target.selectionStart ?? e.target.value.length);
+            // 手动输入时把历史游标重置回末尾(回到「输入框」态)。
+            histCursorRef.current = histRef.current.items.length;
           }}
           onSelect={(e) =>
             setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? cursorPos)
@@ -430,6 +610,46 @@ export function Composer({
               }
               e.preventDefault();
               send();
+              return;
+            }
+            // 输入历史 arrow-key recall(对齐 WorkBuddy use-input-history)。
+            // 仅在未组合输入(中文输入法)且非 slash 菜单可见时响应。
+            if (!slashVisible && !e.nativeEvent.isComposing) {
+              const el = e.target as HTMLTextAreaElement;
+              const atFirstLine = el.selectionStart === 0 || text.length === 0;
+              const atLastLine = el.selectionStart === text.length;
+              // 已在历史导航中(cursor < items.length)时,↑/↓ 持续翻页,不受光标位置约束。
+              const navigating = histCursorRef.current < histRef.current.items.length;
+              if (e.key === "ArrowUp" && (atFirstLine || navigating)) {
+                if (histCursorRef.current === histRef.current.items.length) {
+                  draftRef.current = text; // 进入历史前暂存当前草稿
+                }
+                const r = navigateHistory(histRef.current, histCursorRef.current, "up", draftRef.current);
+                if (r.text !== text) {
+                  e.preventDefault();
+                  histCursorRef.current = r.cursor;
+                  updateText(r.text);
+                  requestAnimationFrame(() => {
+                    const t = ref.current;
+                    if (t) {
+                      t.selectionStart = t.selectionEnd = r.text.length;
+                    }
+                  });
+                }
+              } else if (e.key === "ArrowDown" && (atLastLine || navigating)) {
+                const r = navigateHistory(histRef.current, histCursorRef.current, "down", draftRef.current);
+                if (r.cursor !== histCursorRef.current) {
+                  e.preventDefault();
+                  histCursorRef.current = r.cursor;
+                  updateText(r.text);
+                  requestAnimationFrame(() => {
+                    const t = ref.current;
+                    if (t) {
+                      t.selectionStart = t.selectionEnd = r.text.length;
+                    }
+                  });
+                }
+              }
             }
           }}
         />
@@ -466,6 +686,18 @@ export function Composer({
             <PermissionPicker onToast={onToast} />
           )}
           <div className="wb-composer__spacer" />
+          {/* 发送前成本预估徽章(对齐 WorkBuddy credit-estimate):纯本地 token 估算,
+              仅在文本非空时显示。不依赖计费后端(BYOK 无计费通道)。 */}
+          {text.trim() && (
+            <span
+              className={"wb-composer__cost wb-composer__cost--" + cost.severity}
+              title={`预计新增约 ${cost.newTokens} token${
+                cost.projectedPct > 0 ? ` · 占上下文 ${cost.projectedPct}%` : ""
+              }`}
+            >
+              {cost.label}
+            </span>
+          )}
           {usageSessionId && <ContextUsagePill sessionId={usageSessionId} onRefreshSignal={usageMsgCount} />}
           {showModelPicker ? (
             <ModelSelector
@@ -498,16 +730,33 @@ export function Composer({
             <Mic size={16} />
           </button>
           {streaming ? (
-            <button
-              className="wb-composer__send wb-composer__send--stop"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCancel();
-              }}
-              aria-label="停止生成"
-            >
-              ■
-            </button>
+            <>
+              {/* 流式时可加入待发送队列(对齐 WorkBuddy message-queue)。 */}
+              {onEnqueue && text.trim() !== "" && (
+                <button
+                  className="wb-composer__send wb-composer__send--enqueue"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    enqueue();
+                  }}
+                  disabled={disabled || !apiReady}
+                  aria-label="加入待发送队列"
+                  title="加入待发送队列(agent 完成后自动发送)"
+                >
+                  +
+                </button>
+              )}
+              <button
+                className="wb-composer__send wb-composer__send--stop"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCancel();
+                }}
+                aria-label="停止生成"
+              >
+                ■
+              </button>
+            </>
           ) : (
             <button
               className={
@@ -590,4 +839,29 @@ function getSpeechRecognitionCtor(): VoiceRecognitionCtor | null {
     webkitSpeechRecognition?: VoiceRecognitionCtor;
   };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
+
+/**
+ * 注册内建 Web Speech ASR provider 到 voice-contract 注册表(provider-agnostic,
+ * 对齐 WorkBuddy `asr:*` 契约)。外部 provider(如云端 STT)注册后会因其更高
+ * 优先级而被优先使用。仅在首次调用时注册一次。
+ */
+let webSpeechAsrRegistered = false;
+function ensureWebSpeechAsrRegistered(): void {
+  if (webSpeechAsrRegistered) return;
+  webSpeechAsrRegistered = true;
+  const Ctor = getSpeechRecognitionCtor();
+  if (!Ctor) return;
+  registerAsrProvider(
+    createWebSpeechAsrProvider({
+      isAvailable: () => getSpeechRecognitionCtor() !== null,
+      createRecognition: (lang) => {
+        const rec = new Ctor();
+        rec.lang = lang;
+        rec.interimResults = true;
+        rec.continuous = false;
+        return rec as never;
+      },
+    }),
+  );
 }

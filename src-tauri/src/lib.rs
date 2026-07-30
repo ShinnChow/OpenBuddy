@@ -169,6 +169,7 @@ pub fn run() {
             shell_fs::reveal_in_folder,
             shell_fs::path_stat,
             shell_fs::read_text_file,
+            shell_fs::read_file_base64,
             shell_fs::write_text_file,
             shell_fs::export_text_file,
             shell_fs::browse_directory,

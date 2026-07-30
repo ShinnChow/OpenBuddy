@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Sidebar } from "../Sidebar";
 import { useSessionsStore } from "@/stores/sessions-store";
 
@@ -66,10 +67,22 @@ describe("Sidebar", () => {
     expect(screen.getByRole("menu")).toBeInTheDocument();
     expect(screen.getByText("我的文件")).toBeInTheDocument();
     expect(screen.getByText("腾讯文档")).toBeInTheDocument();
-    expect(screen.getByText("ima知识库")).toBeInTheDocument();
+    expect(screen.getByText("知识库")).toBeInTheDocument();
     expect(screen.getByText("乐享知识库")).toBeInTheDocument();
+    expect(screen.getByText("网页预览")).toBeInTheDocument();
     expect(screen.getByText("灵感")).toBeInTheDocument();
     fireEvent.click(screen.getByText("灵感"));
     expect(onNavigate).toHaveBeenCalledWith("灵感");
+  });
+
+  it("「更多」菜单可进入知识库", async () => {
+    const onNavigate = vi.fn();
+    const user = userEvent.setup();
+    render(<Sidebar {...base} onNavigate={onNavigate} onToast={vi.fn()} />);
+    await user.hover(screen.getByText("更多"));
+    const menu = await screen.findByRole("menu");
+    expect(menu).toBeInTheDocument();
+    fireEvent.click(screen.getByText("知识库"));
+    expect(onNavigate).toHaveBeenCalledWith("知识库");
   });
 });

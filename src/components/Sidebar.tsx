@@ -408,12 +408,12 @@ function MoreDropdown({
       },
     },
     {
-      id: "ima_kb",
-      label: "ima知识库",
+      id: "knowledge_base",
+      label: "知识库",
       icon: <MoreMenuImaKnowledgeIcon size="md" />,
       action: () => {
         setOpen(false);
-        onToast?.("ima 知识库对接开发中");
+        onNavigate("知识库");
       },
     },
     {
@@ -426,12 +426,57 @@ function MoreDropdown({
       },
     },
     {
+      id: "browser_preview",
+      label: "网页预览",
+      icon: <MoreMenuInspirationIcon size="md" />,
+      action: () => {
+        setOpen(false);
+        onNavigate("网页预览");
+      },
+    },
+    {
       id: "inspiration",
       label: "灵感",
       icon: <MoreMenuInspirationIcon size="md" />,
       action: () => {
         setOpen(false);
         onNavigate("灵感");
+      },
+    },
+    {
+      id: "usage_quota",
+      label: "用量统计",
+      icon: <MoreMenuInspirationIcon size="md" />,
+      action: () => {
+        setOpen(false);
+        onNavigate("用量统计");
+      },
+    },
+    {
+      id: "notify_channels",
+      label: "通知渠道",
+      icon: <MoreMenuInspirationIcon size="md" />,
+      action: () => {
+        setOpen(false);
+        onNavigate("通知渠道");
+      },
+    },
+    {
+      id: "policy_settings",
+      label: "策略设置",
+      icon: <MoreMenuInspirationIcon size="md" />,
+      action: () => {
+        setOpen(false);
+        onNavigate("策略设置");
+      },
+    },
+    {
+      id: "cloud_storage",
+      label: "云存储",
+      icon: <MoreMenuInspirationIcon size="md" />,
+      action: () => {
+        setOpen(false);
+        onNavigate("云存储");
       },
     },
   ];

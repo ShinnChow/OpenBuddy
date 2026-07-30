@@ -13,11 +13,19 @@ import { useSessionStore } from "@/stores/session-store";
 import { togglePlanMode } from "@/lib/grok-client";
 import type { PlanEntry, PlanEntryPriority, PlanEntryStatus } from "@/lib/types";
 import {
+  reorderPlan,
+  addPlanEntry,
+  cycleEntryStatus,
+} from "@/lib/plan-utils";
+import {
   CheckIcon,
   ClockIcon,
   LoaderIcon,
   TaskListIcon,
   DeleteIcon,
+  ArrowUpIcon,
+  ChevronDownIcon,
+  AddIcon,
 } from "@/foundation/components/Icon/icons";
 
 const STATUS_LABEL: Record<PlanEntryStatus, string> = {
@@ -132,6 +140,29 @@ export function PlanPanel({ sessionId, onSend, onToast }: PlanPanelProps) {
     },
     [plan, setPlan, onToast],
   );
+
+  // 计划编辑器(对齐 WorkBuddy plan-editor):上移/下移/状态循环/新增步骤。
+  const handleMove = useCallback(
+    (idx: number, dir: -1 | 1) => {
+      if (!plan) return;
+      setPlan(reorderPlan(plan, idx, idx + dir));
+    },
+    [plan, setPlan],
+  );
+  const handleCycleStatus = useCallback(
+    (idx: number) => {
+      if (!plan) return;
+      setPlan(cycleEntryStatus(plan, idx));
+    },
+    [plan, setPlan],
+  );
+  const [newStep, setNewStep] = useState("");
+  const handleAddStep = useCallback(() => {
+    if (!plan || !newStep.trim()) return;
+    setPlan(addPlanEntry(plan, newStep));
+    setNewStep("");
+    onToast?.("已新增步骤");
+  }, [plan, newStep, setPlan, onToast]);
 
   const handleCyclePriority = useCallback(
     (idx: number) => {
@@ -259,6 +290,7 @@ export function PlanPanel({ sessionId, onSend, onToast }: PlanPanelProps) {
             key={idx}
             entry={entry}
             index={idx}
+            total={plan.entries.length}
             elapsed={elapsed[idx]}
             editing={editingIdx === idx}
             editText={editText}
@@ -272,9 +304,34 @@ export function PlanPanel({ sessionId, onSend, onToast }: PlanPanelProps) {
             onSkip={() => handleSkip(idx)}
             onDelete={() => handleDeleteEntry(idx)}
             onCyclePriority={() => handleCyclePriority(idx)}
+            onMoveUp={() => handleMove(idx, -1)}
+            onMoveDown={() => handleMove(idx, 1)}
+            onCycleStatus={() => handleCycleStatus(idx)}
           />
         ))}
       </ul>
+
+      {/* 新增步骤(对齐 WorkBuddy plan-editor) */}
+      <div className="plan-panel__add">
+        <input
+          className="plan-panel__add-input"
+          value={newStep}
+          onChange={(e) => setNewStep(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleAddStep();
+          }}
+          placeholder="新增一个步骤…"
+          aria-label="新增步骤"
+        />
+        <button
+          className="plan-panel__add-btn"
+          onClick={handleAddStep}
+          disabled={!newStep.trim()}
+          title="新增步骤"
+        >
+          <AddIcon size="sm" /> 添加
+        </button>
+      </div>
     </div>
   );
 }
@@ -282,6 +339,7 @@ export function PlanPanel({ sessionId, onSend, onToast }: PlanPanelProps) {
 interface PlanRowProps {
   entry: PlanEntry;
   index: number;
+  total: number;
   elapsed?: number;
   editing: boolean;
   editText: string;
@@ -292,11 +350,15 @@ interface PlanRowProps {
   onSkip: () => void;
   onDelete: () => void;
   onCyclePriority: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onCycleStatus: () => void;
 }
 
 function PlanRow({
   entry,
   index,
+  total,
   elapsed,
   editing,
   editText,
@@ -307,6 +369,9 @@ function PlanRow({
   onSkip,
   onDelete,
   onCyclePriority,
+  onMoveUp,
+  onMoveDown,
+  onCycleStatus,
 }: PlanRowProps) {
   const formatElapsed = (s: number) => {
     if (s < 60) return `${s}s`;
@@ -361,7 +426,11 @@ function PlanRow({
           >
             {PRIORITY_LABEL[entry.priority]}
           </button>
-          <span className="plan-panel__row-status">
+          <span
+            className="plan-panel__row-status plan-panel__row-status--clickable"
+            onClick={onCycleStatus}
+            title="点击切换状态"
+          >
             {STATUS_LABEL[entry.status]}
           </span>
           {elapsed !== undefined && (
@@ -374,6 +443,24 @@ function PlanRow({
       </div>
       {/* Row actions */}
       <div className="plan-panel__row-actions">
+        <button
+          className="plan-panel__row-action"
+          onClick={onMoveUp}
+          disabled={index === 0}
+          title="上移"
+          aria-label="上移"
+        >
+          <ArrowUpIcon size="sm" />
+        </button>
+        <button
+          className="plan-panel__row-action"
+          onClick={onMoveDown}
+          disabled={index === total - 1}
+          title="下移"
+          aria-label="下移"
+        >
+          <ChevronDownIcon size="sm" />
+        </button>
         {entry.status === "pending" && (
           <button
             className="plan-panel__row-action"

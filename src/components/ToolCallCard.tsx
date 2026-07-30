@@ -1,5 +1,12 @@
 import type { ToolCallView } from "@/stores/session-store";
 import type { DiffContent, CommandOutputContent } from "@/lib/types";
+import { checkCommandRisk, riskLabel } from "@/lib/command-risk";
+import {
+  detectToolRenderer,
+  rendererLabel,
+  rendererIcon,
+  summarizeTool,
+} from "@/lib/tool-renderers";
 
 type ToolCallCardProps = {
   tc: ToolCallView;
@@ -29,16 +36,26 @@ export function ToolCallCard({ tc, onOpen }: ToolCallCardProps) {
 
   const shortTitle = shortenTitle(tc.title, tc.kind);
 
+  // 专用渲染器(对齐 WorkBuddy tools/renderers):非 default/unknown 时用图标 +
+  // 渲染器标签 + 摘要替代通用 kind 文案。
+  const renderer = detectToolRenderer(tc.kind);
+  const specialized =
+    renderer !== "default" && renderer !== "unknown";
+  const kindLabel = specialized
+    ? `${rendererIcon(renderer)} ${rendererLabel(renderer)}`
+    : prettyKind(tc.kind);
+  const summary = specialized ? summarizeTool(tc, renderer) : shortTitle;
+
   return (
     <button
       type="button"
       className={"toolcall toolcall--compact " + statusCls}
       onClick={() => onOpen?.(tc)}
       title={`${tc.kind}: ${tc.title}（${statusLabel}，点击查看详情）`}
-      aria-label={`${tc.kind} ${shortTitle} ${statusLabel}`}
+      aria-label={`${tc.kind} ${summary} ${statusLabel}`}
     >
-      <span className="toolcall__kind">{prettyKind(tc.kind)}</span>
-      <span className="toolcall__title">{shortTitle}</span>
+      <span className="toolcall__kind">{kindLabel}</span>
+      <span className="toolcall__title">{summary}</span>
       <span className={"toolcall__status-mark toolcall__status-mark--" + tc.status}>
         {statusMark}
       </span>
@@ -114,6 +131,7 @@ export function ToolCallDetailBody({
       )}
       {cmd && (
         <div className="toolcall__cmd">
+          {cmd.command && <CommandRiskBadge command={cmd.command} />}
           {cmd.command && (
             <pre className="toolcall__cmd-line">
               <span className="toolcall__prompt">$</span>
@@ -139,6 +157,28 @@ export function ToolCallDetailBody({
         <p className="tool-detail__empty">暂无详细输出</p>
       )}
     </div>
+  );
+}
+
+/**
+ * 命令风险徽章 —— 对齐 WorkBuddy `command-risk`。
+ *
+ * 仅在 medium / high 时显示(对齐 WorkBuddy 标注而非拦截);low 不渲染任何东西。
+ * `reasons` 通过 title 悬浮提示展示命中原因。
+ */
+function CommandRiskBadge({ command }: { command: string }) {
+  const risk = checkCommandRisk(command);
+  if (risk.level === "low") return null;
+  const cls = risk.level === "high" ? "cmd-risk cmd-risk--high" : "cmd-risk cmd-risk--medium";
+  const reasons = risk.reasons.length > 0 ? `\n原因:${risk.reasons.join("; ")}` : "";
+  return (
+    <span
+      className={cls}
+      role="status"
+      title={`⚠️ ${riskLabel(risk.level)}命令${reasons}`}
+    >
+      ⚠️ {riskLabel(risk.level)}
+    </span>
   );
 }
 

@@ -15,10 +15,27 @@ describe("ToolCallCard", () => {
   it("renders compact row and opens detail on click", () => {
     const onOpen = vi.fn();
     render(<ToolCallCard tc={base} onOpen={onOpen} />);
-    expect(screen.getByText("edit")).toBeInTheDocument();
+    // edit 属专用渲染器,kind 标签显示为「✏️ 文件编辑」。
+    expect(screen.getByText("✏️ 文件编辑")).toBeInTheDocument();
     expect(screen.getByText(/hello\.txt/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button"));
     expect(onOpen).toHaveBeenCalledWith(base);
+  });
+
+  it("专用渲染器(send-message)显示图标 + 标签 + 摘要", () => {
+    render(
+      <ToolCallCard
+        tc={{
+          ...base,
+          kind: "send_message",
+          title: "通知",
+          rawInput: { message: "你好,这是一条通知" },
+        }}
+        onOpen={() => {}}
+      />,
+    );
+    expect(screen.getByText("💬 发送消息")).toBeInTheDocument();
+    expect(screen.getByText("你好,这是一条通知")).toBeInTheDocument();
   });
 
   it("shows running status mark while in progress", () => {

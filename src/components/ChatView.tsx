@@ -15,6 +15,20 @@ import { RewindBar } from "./RewindBar";
 import { PermissionInlineCard } from "./PermissionDialog";
 import { QuestionInlineCard } from "./QuestionInlineCard";
 import { ToolSidePanel, type ToolSidePanelMode } from "./ToolSidePanel";
+import { FindBar, isFindHit } from "./FindBar";
+import { FileChangesPanel } from "./FileChangesPanel";
+import { SubagentPanel } from "./SubagentPanel";
+import { ShareMenu } from "./ShareMenu";
+import { QueuePanel } from "./QueuePanel";
+import { useMessageQueueStore } from "@/stores/message-queue-store";
+import { buildTimeline } from "@/lib/timeline-utils";
+import {
+  requestYield,
+  confirmYielded,
+  clearYield,
+  isYielded,
+  createYieldStore,
+} from "@/lib/yield-state";
 import type { ModelOption } from "./ModelSelector";
 import type { HomeModeId } from "./home-scenes";
 import type { AgentEntry } from "@/lib/types";
@@ -61,6 +75,36 @@ export function ChatView({
   const error = useSessionStore((s) => s.error);
   const plan = useSessionStore((s) => s.plan);
   const sessionId = useSessionStore((s) => s.sessionId);
+  // 会话内查找(对齐 WorkBuddy chat-search)。
+  const [findOpen, setFindOpen] = useState(false);
+  const [findHits, setFindHits] = useState<string[]>([]);
+  const [findCurrent, setFindCurrent] = useState<string | null>(null);
+  // 文件变更聚合面板(对齐 WorkBuddy file-changes-panel)。
+  const [fileChangesOpen, setFileChangesOpen] = useState(false);
+  // 子代理运行时面板(对齐 WorkBuddy team-runtime)。
+  const [subagentsOpen, setSubagentsOpen] = useState(false);
+  // pause/yield(对齐 WorkBuddy session:requestYield):软暂停,保留会话上下文。
+  const [yieldStore, setYieldStore] = useState<Record<string, ReturnType<typeof createYieldStore>>["k"]>(() => createYieldStore());
+  const yielded = sessionId ? isYielded(yieldStore, sessionId) : false;
+  const handlePause = useCallback(() => {
+    if (!sessionId || !streaming) return;
+    setYieldStore((s) => requestYield(s, sessionId));
+    // grok 无原生 yield,用 cancel 软停止(保留会话);yield 状态在 complete 后确认。
+    onCancel();
+  }, [sessionId, streaming, onCancel]);
+  const handleResume = useCallback(() => {
+    if (!sessionId) return;
+    setYieldStore((s) => clearYield(s, sessionId));
+    onToast?.("已恢复(可继续发送消息)");
+  }, [sessionId, onToast]);
+  /** 恢复并重新触发 agent:清除 yield 状态 + 发送「请继续」让 agent 接着生成。
+   *  形成完整闭环(暂停 → 显式恢复并续跑),区别于仅清状态的「恢复」。 */
+  const handleResumeAndContinue = useCallback(() => {
+    if (!sessionId) return;
+    setYieldStore((s) => clearYield(s, sessionId));
+    onSend("请继续。");
+    onToast?.("已恢复并继续生成");
+  }, [sessionId, onSend, onToast]);
   // 按会话持久化的输入草稿:切到本会话时回填,每次输入回写 store。
   // 选 setDraft 的稳定引用做回调,避免 sessionId 变化时让 Composer 收到新函数。
   const setDraft = useSessionsStore((s) => s.setDraft);
@@ -189,6 +233,34 @@ export function ChatView({
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
+  // 会话内查找:Ctrl/Cmd+F 打开;当前命中滚入视野。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+        if (messages.length > 0) {
+          e.preventDefault();
+          setFindOpen(true);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [messages.length]);
+  useEffect(() => {
+    if (!findCurrent) return;
+    const node = scrollRef.current?.querySelector(
+      `[data-msg-id="${findCurrent}"]`,
+    );
+    node?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [findCurrent]);
+  // 流式结束后确认 yield(yielding → yielded,显示「已暂停」横幅)。
+  useEffect(() => {
+    if (!sessionId) return;
+    if (!streaming) {
+      setYieldStore((s) => confirmYielded(s, sessionId));
+    }
+  }, [sessionId, streaming]);
+
   return (
     <div className={"chatview" + (panelOpen ? " chatview--with-panel" : "")}>
       <div className="chatview__main">
@@ -250,28 +322,119 @@ export function ChatView({
           </button>
         )}
 
+        {/* 会话内查找入口 + 查找条(对齐 WorkBuddy chat-search)。 */}
+        {messages.length > 0 && (
+          <button
+            type="button"
+            className={
+              "chatview__artifacts-toggle" +
+              (findOpen ? " chatview__artifacts-toggle--active" : "")
+            }
+            onClick={() => setFindOpen((v) => !v)}
+            title="在当前对话中查找 (Ctrl/Cmd+F)"
+          >
+            查找
+          </button>
+        )}
+        <FindBar
+          messages={messages}
+          open={findOpen}
+          onClose={() => {
+            setFindOpen(false);
+            setFindHits([]);
+            setFindCurrent(null);
+          }}
+          onHitsChange={setFindHits}
+          onActiveChange={setFindCurrent}
+        />
+
+        {/* 文件变更聚合入口(对齐 WorkBuddy file-changes-panel)。 */}
+        {messages.length > 0 && (
+          <button
+            type="button"
+            className={
+              "chatview__artifacts-toggle" +
+              (fileChangesOpen ? " chatview__artifacts-toggle--active" : "")
+            }
+            onClick={() => setFileChangesOpen((v) => !v)}
+            title="本会话文件变更"
+          >
+            变更
+          </button>
+        )}
+        {/* 子代理运行时入口(对齐 WorkBuddy team-runtime)。 */}
+        {messages.length > 0 && (
+          <button
+            type="button"
+            className={
+              "chatview__artifacts-toggle" +
+              (subagentsOpen ? " chatview__artifacts-toggle--active" : "")
+            }
+            onClick={() => setSubagentsOpen((v) => !v)}
+            title="子代理运行时"
+          >
+            子代理
+          </button>
+        )}
+        {/* 分享 / 导出本会话(对齐 WorkBuddy share:*)。 */}
+        {messages.length > 0 && (
+          <ShareMenu messages={messages} onDone={onToast} />
+        )}
+
         <div className="chatview__scroll" ref={scrollRef}>
           <div className="chatview__inner">
-            {messages.map((m, idx) => {
+            {fileChangesOpen && (
+              <FileChangesPanel messages={messages} />
+            )}
+            {subagentsOpen && (
+              <SubagentPanel messages={messages} tasks={undefined} />
+            )}
+            {buildTimeline(messages).map((node) => {
+              // 时间线分隔符(对齐 WorkBuddy message-timeline):日期/模型切换分隔。
+              // 当前 ChatMessage 无 modelId/createdAt,无分隔符时仅渲染消息节点。
+              if (node.kind === "date-divider") {
+                return (
+                  <div key={node.key} className="timeline-divider timeline-divider--date">
+                    {node.label}
+                  </div>
+                );
+              }
+              if (node.kind === "model-divider") {
+                return (
+                  <div key={node.key} className="timeline-divider timeline-divider--model">
+                    {node.label}
+                  </div>
+                );
+              }
+              const m = node.message;
+              const idx = node.index;
               // 重试只对最后一条 assistant 消息开放（重试中间消息没有语义）。
               const isLastAssistant =
                 m.role === "assistant" && idx === messages.length - 1;
+              // 会话内查找:命中容器高亮(当前命中更深一层)。
+              const findCls = findOpen && isFindHit(findHits, m.id)
+                ? m.id === findCurrent
+                  ? " msg-wrap--find-current"
+                  : " msg-wrap--find-hit"
+                : "";
               return (
-                <MessageItem
-                  key={m.id}
-                  message={m}
-                  streaming={streaming && m.id === streamingMessageId}
-                  markdownConfig={markdownConfig}
-                  cwd={cwd}
-                  onToast={onToast}
-                  onOpenTool={handleOpenTool}
-                  onEditResend={handleEditResend}
-                  onRetry={
-                    isLastAssistant && !streaming && m.complete
-                      ? handleRetry
-                      : undefined
-                  }
-                />
+                <div key={m.id} className={"msg-wrap" + findCls} data-msg-id={m.id}>
+                  <MessageItem
+                    message={m}
+                    streaming={streaming && m.id === streamingMessageId}
+                    markdownConfig={markdownConfig}
+                    cwd={cwd}
+                    sessionId={sessionId ?? undefined}
+                    onToast={onToast}
+                    onOpenTool={handleOpenTool}
+                    onEditResend={handleEditResend}
+                    onRetry={
+                      isLastAssistant && !streaming && m.complete
+                        ? handleRetry
+                        : undefined
+                    }
+                  />
+                </div>
               );
             })}
           </div>
@@ -280,6 +443,41 @@ export function ChatView({
           {/* Inline permission / question cards: session-scoped, never block sidebar. */}
           <PermissionInlineCard sessionId={sessionId} />
           <QuestionInlineCard sessionId={sessionId} />
+          {/* pause/yield:已暂停横幅 + 恢复按钮(对齐 WorkBuddy session:requestYield)。 */}
+          {yielded && (
+            <div className="yield-banner" role="status">
+              <span>已暂停(会话上下文已保留)</span>
+              <div className="yield-banner__actions">
+                <button
+                  type="button"
+                  className="yield-banner__resume"
+                  onClick={handleResume}
+                  title="仅恢复,不触发新回复(可继续输入)"
+                >
+                  恢复
+                </button>
+                <button
+                  type="button"
+                  className="yield-banner__resume yield-banner__resume--primary"
+                  onClick={handleResumeAndContinue}
+                  title="恢复并发送「请继续」让 agent 接着生成"
+                >
+                  恢复并继续
+                </button>
+              </div>
+            </div>
+          )}
+          {/* 流式时提供「暂停」按钮(软停止,区别于停止按钮的硬取消)。 */}
+          {sessionId && streaming && !yielded && (
+            <button
+              type="button"
+              className="chatview__pause-btn"
+              onClick={handlePause}
+              title="暂停生成(保留会话,可继续)"
+            >
+              ⏸ 暂停
+            </button>
+          )}
           {/* Rewind / fork: 会话级工具，放在输入框正上方（不再漂浮到左上角挡标题栏）。 */}
           {sessionId && !streaming && (
             <RewindBar
@@ -290,9 +488,22 @@ export function ChatView({
               onToast={onToast}
             />
           )}
+          {/* 消息队列(对齐 WorkBuddy message-queue):流式时可继续排队 prompt。
+              非流式时面板为空(QueuePanel 内部 queue.length===0 直接 return null)。 */}
+          {sessionId && (
+            <QueuePanel sessionId={sessionId} onSendNow={(t) => onSend(t)} />
+          )}
           <Composer
             streaming={streaming}
             onSend={onSend}
+            onEnqueue={
+              sessionId
+                ? (text) => {
+                    useMessageQueueStore.getState().enqueue(sessionId, text);
+                    onToast?.("已加入待发送队列");
+                  }
+                : undefined
+            }
             onCancel={onCancel}
             modelId={modelId}
             models={models}

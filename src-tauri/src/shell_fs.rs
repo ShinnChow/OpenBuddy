@@ -201,6 +201,30 @@ pub async fn read_text_file(
     Ok(text)
 }
 
+/// Read a file's raw bytes as a base64 string (for OOXML docx/pptx/sheet zip
+/// extraction in the frontend knowledge base). Not workspace-restricted — used
+/// for knowledge-source indexing of files the user explicitly picks.
+/// `max_bytes` defaults to 1 MiB.
+#[tauri::command]
+pub async fn read_file_base64(
+    path: String,
+    max_bytes: Option<u64>,
+) -> Result<String, String> {
+    let resolved = resolve_path(&path, None);
+    if !resolved.exists() {
+        return Err(format!("文件不存在：{}", resolved.display()));
+    }
+    if !resolved.is_file() {
+        return Err(format!("不是文件：{}", resolved.display()));
+    }
+    let limit = max_bytes.unwrap_or(1024 * 1024) as usize;
+    let data = std::fs::read(&resolved).map_err(|e| format!("读取失败：{e}"))?;
+    let slice = if data.len() > limit { &data[..limit] } else { &data[..] };
+    // Base64-standard encode (with padding).
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    Ok(STANDARD.encode(slice))
+}
+
 /// Write text to a file, restricted to `workspace_root` (session cwd).
 /// Creates parent directories as needed. Overwrites existing files.
 #[tauri::command]

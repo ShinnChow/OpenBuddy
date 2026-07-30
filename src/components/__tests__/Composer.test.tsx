@@ -105,4 +105,71 @@ describe("Composer", () => {
     fireEvent.click(screen.getByRole("button", { name: "发送" }));
     expect(onDraftChange).toHaveBeenLastCalledWith("");
   });
+
+  // ---------- 消息队列:流式时入队 ----------
+  it("streaming + onEnqueue 时显示入队按钮,点击触发 onEnqueue 并清空输入", () => {
+    const onEnqueue = vi.fn();
+    const onDraftChange = vi.fn();
+    render(
+      <Composer
+        {...base}
+        streaming
+        onEnqueue={onEnqueue}
+        draft="排队中"
+        draftKey="s1"
+        onDraftChange={onDraftChange}
+      />,
+    );
+    // 入队按钮可访问名 = "加入待发送队列"。
+    const btn = screen.getByRole("button", { name: "加入待发送队列" });
+    fireEvent.click(btn);
+    expect(onEnqueue).toHaveBeenCalledWith("排队中");
+    expect(onDraftChange).toHaveBeenLastCalledWith("");
+  });
+
+  it("streaming 但文本为空时不渲染入队按钮", () => {
+    render(
+      <Composer {...base} streaming onEnqueue={vi.fn()} draft="" draftKey="s1" />,
+    );
+    expect(screen.queryByRole("button", { name: "加入待发送队列" })).toBeNull();
+    // 停止按钮仍在。
+    expect(screen.getByRole("button", { name: "停止生成" })).toBeInTheDocument();
+  });
+
+  it("未传 onEnqueue 时 streaming 不渲染入队按钮(保持原行为)", () => {
+    render(<Composer {...base} streaming draft="x" draftKey="s1" />);
+    expect(screen.queryByRole("button", { name: "加入待发送队列" })).toBeNull();
+  });
+
+  // ---------- 输入历史(arrow-key recall)----------
+  it("发送后按 ↑ 召回上一条历史,按 ↓ 回到输入框", () => {
+    const onSend = vi.fn();
+    render(<Composer {...base} onSend={onSend} />);
+    const input = screen.getByRole("textbox") as HTMLTextAreaElement;
+    // 发送一条。
+    fireEvent.change(input, { target: { value: "第一条" } });
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
+    expect(onSend).toHaveBeenCalledWith("第一条");
+    // 输入框已清空;按 ↑ 召回「第一条」。
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("第一条");
+    // 按 ↓ 回到输入框(空)。
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("");
+  });
+
+  it("多次发送后 ↑ 连续上翻历史", () => {
+    const onSend = vi.fn();
+    render(<Composer {...base} onSend={onSend} />);
+    const input = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: "a" } });
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
+    fireEvent.change(input, { target: { value: "b" } });
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
+    // ↑ → b(最新),再 ↑ → a。
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("b");
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("a");
+  });
 });

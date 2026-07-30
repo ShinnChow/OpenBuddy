@@ -44,6 +44,7 @@ import {
 } from "./lib/grok-client";
 import type { AgentEntry } from "./lib/types";
 import { useProjectsStore, type ProjectMeta } from "./stores/projects-store";
+import { useMessageQueueStore, hasActiveItems } from "./stores/message-queue-store";
 import { IS_MACOS } from "./lib/platform";
 
 /** Hidden markers wrapping the expert persona in the text sent to grok.
@@ -143,6 +144,17 @@ function Shell() {
   useEffect(() => {
     let unlisten: (() => void) | null = null;
 
+    // 尝试自动激活 @anthropic-ai/sandbox-runtime(装好包后零改动生效)。
+    // 非阻塞:失败(包未安装)静默降级为纯逻辑守卫。
+    void import("@/lib/sandbox-init")
+      .then((m) => m.tryActivateSandbox())
+      .then((status) => {
+        if (status.activated) {
+          console.log(`[OpenBuddy] OS 级沙箱已激活 (@anthropic-ai/sandbox-runtime${status.version ? ` v${status.version}` : ""})`);
+        }
+      })
+      .catch(() => {/* 静默 */});
+
     (async () => {
       try {
         const result = await grokInit();
@@ -191,6 +203,22 @@ function Shell() {
               p.sessionId,
               "info",
             );
+            // 消息队列自动续发(对齐 WorkBuddy message-queue):该会话若有 active
+            // 队列项,取下一条继续发送,实现「回完一条自动发下一条」。
+            const q = useMessageQueueStore.getState().getQueue(p.sessionId);
+            if (hasActiveItems(q)) {
+              const next = useMessageQueueStore.getState().shiftNext(p.sessionId);
+              if (next) {
+                // 标记为工作中 + 推入用户气泡 + 启动流式 + 发送。
+                sessionsStore.getState().upsert({ sessionId: p.sessionId, status: "working" });
+                sessionStore.getState().pushUser(next.text);
+                sessionStore.getState().startStreaming();
+                grokSend(p.sessionId, next.text).catch((e) => {
+                  sessionStore.getState().setError(String(e));
+                  sessionsStore.getState().upsert({ sessionId: p.sessionId, status: "failed" });
+                });
+              }
+            }
           },
           onSummary: ({ sessionId, title }) => {
             // grok generated (or we renamed) a session title — update the

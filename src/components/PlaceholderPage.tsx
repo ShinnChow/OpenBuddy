@@ -9,6 +9,12 @@ import { MyFilesPanel } from "./MyFilesPanel";
 import { PluginsPanel } from "./PluginsPanel";
 import { MarketplacePanel } from "./MarketplacePanel";
 import { DiscoverPanel } from "./DiscoverPanel";
+import { KnowledgeBasePanel } from "./KnowledgeBasePanel";
+import { BrowserPreview } from "./BrowserPreview";
+import { UsageQuotaPanel } from "./UsageQuotaPanel";
+import { NotifyChannelsPanel } from "./NotifyChannelsPanel";
+import { PolicySettingsPanel } from "./PolicySettingsPanel";
+import { CloudStoragePanel } from "./CloudStoragePanel";
 import type { AgentEntry } from "@/lib/types";
 import type { ModelOption } from "./ModelSelector";
 import type { ProjectMeta } from "@/stores/projects-store";
@@ -135,6 +141,63 @@ export function PlaceholderPage({
 
   if (label === "我的文件") {
     return <MyFilesPanel cwd={cwd} onToast={onToast} />;
+  }
+
+  // 知识库(可插拔源,对齐 WorkBuddy knowledge-base-panel)。
+  if (label === "知识库") {
+    return (
+      <div className="placeholder-page placeholder-page--panel">
+        <KnowledgeBasePanel
+          onOpen={(id) => onToast?.(`打开知识条目 ${id}`)}
+          onToast={onToast}
+        />
+      </div>
+    );
+  }
+
+  // 网页预览(对齐 WorkBuddy browser-preview)。
+  if (label === "网页预览") {
+    return (
+      <div className="placeholder-page placeholder-page--panel">
+        <BrowserPreview url="" />
+      </div>
+    );
+  }
+
+  // 用量配额(对齐 WorkBuddy credit-usage)。
+  if (label === "用量统计") {
+    return (
+      <div className="placeholder-page placeholder-page--panel">
+        <UsageQuotaPanel />
+      </div>
+    );
+  }
+
+  // 通知渠道(对齐 WorkBuddy IM 渠道)。
+  if (label === "通知渠道") {
+    return (
+      <div className="placeholder-page placeholder-page--panel">
+        <NotifyChannelsPanel onToast={onToast} />
+      </div>
+    );
+  }
+
+  // 策略设置(对齐 WorkBuddy 企业策略)。
+  if (label === "策略设置") {
+    return (
+      <div className="placeholder-page placeholder-page--panel">
+        <PolicySettingsPanel onToast={onToast} />
+      </div>
+    );
+  }
+
+  // 云存储(对齐 WorkBuddy 腾讯 Drive)。
+  if (label === "云存储") {
+    return (
+      <div className="placeholder-page placeholder-page--panel">
+        <CloudStoragePanel onToast={onToast} />
+      </div>
+    );
   }
 
   // 其他功能显示占位页面

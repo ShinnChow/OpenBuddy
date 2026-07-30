@@ -12,6 +12,9 @@ vi.mock("@/lib/grok-client", () => ({
   sessionFork: vi.fn().mockResolvedValue("forked-session-id-1234"),
 }));
 
+// Re-import the mocked module so we can assert call args on the stubs.
+const { rewindExecute } = await import("@/lib/grok-client");
+
 describe("RewindBar wiring", () => {
   beforeEach(() => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -38,10 +41,16 @@ describe("RewindBar wiring", () => {
     );
     // 打开下拉触发加载回溯点。
     fireEvent.click(screen.getByRole("button", { name: /回溯/ }));
-    // 等列表渲染出来,点"仅对话"。
-    const onlyConv = await screen.findByRole("button", { name: "仅对话" });
-    fireEvent.click(onlyConv);
+    // 选"仅对话"模式(模式下拉与时间线动作按钮共名片段,先精确选中模式)。
+    const modeBtn = await screen.findByRole("button", { name: "仅对话" });
+    fireEvent.click(modeBtn);
+    // 时间线动作按钮的可访问名是"回溯到此处（仅对话)",点击它真正触发回溯。
+    const actionBtn = await screen.findByRole("button", {
+      name: /回溯到此处.*仅对话/,
+    });
+    fireEvent.click(actionBtn);
     await waitFor(() => expect(onRewound).toHaveBeenCalled());
+    expect(rewindExecute).toHaveBeenCalledWith("s1", 0, "conversation", true);
     expect(onToast).toHaveBeenCalled();
   });
 });
