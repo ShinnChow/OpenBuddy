@@ -1239,85 +1239,6 @@
   text-align: center;
   color: var(--wb-text-light);
 }
-/* 首次运行引导横幅(对齐 WorkBuddy onboarding) */
-.onboarding-banner {
-  max-width: 560px;
-  margin: 0 auto 16px;
-  padding: 16px;
-  background: var(--wb-bg-elevated, var(--wb-bg-primary));
-  border: 1px solid var(--wb-border-default);
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-  font-size: 13px;
-}
-.onboarding-banner__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-.onboarding-banner__title {
-  font-weight: 600;
-  color: var(--wb-text-strong);
-}
-.onboarding-banner__dismiss {
-  border: 1px solid var(--wb-border-default);
-  background: var(--wb-bg-primary);
-  color: var(--wb-text-medium);
-  border-radius: 6px;
-  font-size: 11px;
-  padding: 2px 10px;
-  cursor: pointer;
-}
-.onboarding-banner__dismiss:hover {
-  border-color: var(--wb-brand);
-  color: var(--wb-brand);
-}
-.onboarding-banner__bar {
-  height: 4px;
-  background: var(--wb-bg-tertiary);
-  border-radius: 2px;
-  overflow: hidden;
-  margin-bottom: 12px;
-}
-.onboarding-banner__bar-fill {
-  height: 100%;
-  background: var(--wb-brand);
-  transition: width 0.3s;
-}
-.onboarding-banner__steps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.onboarding-banner__step {
-  display: grid;
-  grid-template-columns: 18px 1fr;
-  gap: 4px 8px;
-  align-items: baseline;
-}
-.onboarding-banner__step--done {
-  opacity: 0.6;
-}
-.onboarding-banner__step-mark {
-  color: var(--wb-brand);
-  font-weight: 600;
-}
-.onboarding-banner__step--done .onboarding-banner__step-mark {
-  color: #16a34a;
-}
-.onboarding-banner__step-title {
-  font-weight: 600;
-  color: var(--wb-text-strong);
-}
-.onboarding-banner__step-desc {
-  grid-column: 2;
-  color: var(--wb-text-light);
-  font-size: 12px;
-}
 /* 消息队列面板(对齐 WorkBuddy message-queue-panel) */
 .queue-panel {
   margin: 0 0 6px;
@@ -2154,15 +2075,90 @@
 
 /* ---------- tool side panel (Phases 2–3) ---------- */
 .tool-side-panel {
-  width: 340px;
   flex: none;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   min-height: 0;
   border-left: 1px solid var(--wb-border-default);
   background: var(--wb-bg-primary);
   box-shadow: -4px 0 16px rgba(0, 0, 0, 0.04);
   z-index: 25;
+  position: relative;
+}
+/* 最大化：覆盖到 chatview 之上，固定宽度。 */
+.tool-side-panel--maximized {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  z-index: 40;
+}
+/* 面板左边缘全宽拖拽条 */
+.tool-side-panel__edge-sash {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 2;
+}
+.tool-side-panel__edge-sash:hover,
+.tool-side-panel__edge-sash:active {
+  background: var(--wb-brand);
+  opacity: 0.3;
+}
+
+/* ---- 左导航列 ---- */
+.tool-side-panel__nav {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--wb-border-default);
+  background: var(--wb-bg-secondary);
+  flex: none;
+  overflow: hidden;
+}
+.tool-side-panel__nav--collapsed {
+  width: 36px !important;
+}
+.tool-side-panel__nav-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 44px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--wb-border-default);
+  flex: none;
+  box-sizing: border-box;
+}
+.tool-side-panel__nav-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+  box-sizing: border-box;
+}
+/* 导航列与主列之间的拖拽条 */
+.tool-side-panel__sash {
+  width: 5px;
+  cursor: ew-resize;
+  flex: none;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+.tool-side-panel__sash:hover,
+.tool-side-panel__sash:active {
+  background: var(--wb-brand);
+  opacity: 0.3;
+}
+
+/* ---- 主内容列 ---- */
+.tool-side-panel__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 .tool-side-panel__header {
   display: flex;
@@ -2170,7 +2166,7 @@
   justify-content: space-between;
   gap: 8px;
   height: 44px;
-  padding: 0 10px 0 12px;
+  padding: 0 6px 0 4px;
   border-bottom: 1px solid var(--wb-border-default);
   flex: none;
   box-sizing: border-box;
@@ -2180,25 +2176,38 @@
   align-items: center;
   gap: 4px;
   min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
-.tool-side-panel__tab {
+.tool-side-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.tool-side-panel__icon-btn {
+  width: 28px;
   height: 28px;
-  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   border-radius: 6px;
   background: transparent;
   color: var(--wb-text-medium);
-  font-size: 12px;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
-.tool-side-panel__tab:disabled {
+.tool-side-panel__icon-btn:hover {
+  background: var(--wb-bg-hover);
+  color: var(--wb-text-strong);
+}
+.tool-side-panel__icon-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
-.tool-side-panel__tab--active {
-  background: var(--wb-bg-tertiary);
-  color: var(--wb-text-strong);
-  font-weight: 600;
+.tool-side-panel__icon--flip {
+  transform: rotate(180deg);
 }
 .tool-side-panel__close {
   width: 28px;
@@ -2215,49 +2224,10 @@
   background: var(--wb-bg-hover);
   color: var(--wb-text-strong);
 }
-/* ---- ArtifactTabsBar: 产物快速切换标签条 ---- */
-.artifact-tabs-bar {
-  display: flex;
-  gap: 2px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--wb-border-default);
-  overflow-x: auto;
-  flex: none;
-  scrollbar-width: thin;
-}
-.artifact-tabs-bar::-webkit-scrollbar {
-  height: 3px;
-}
-.artifact-tabs-bar__tab {
-  flex: none;
-  padding: 4px 10px;
-  border: none;
-  border-radius: 6px 6px 0 0;
-  background: transparent;
-  color: var(--wb-text-medium);
-  font-size: 11px;
-  cursor: pointer;
-  white-space: nowrap;
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  border-bottom: 2px solid transparent;
-  transition: all 0.15s ease;
-}
-.artifact-tabs-bar__tab:hover {
-  background: var(--wb-bg-hover);
-  color: var(--wb-text-strong);
-}
-.artifact-tabs-bar__tab--active {
-  color: var(--wb-brand);
-  border-bottom-color: var(--wb-brand);
-  font-weight: 500;
-}
 .tool-side-panel__body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 12px;
   box-sizing: border-box;
 }
 .tool-side-panel__empty {
@@ -2265,6 +2235,356 @@
   font-size: 13px;
   color: var(--wb-text-weak);
   line-height: 1.5;
+  text-align: center;
+}
+.tool-side-panel__link {
+  background: none;
+  border: none;
+  color: var(--wb-brand);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+.tool-side-panel__link:hover {
+  opacity: 0.8;
+}
+.tool-side-panel__preview-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.tool-side-panel__preview-wrap .tool-side-panel__link {
+  align-self: flex-start;
+  margin: 8px 12px 4px;
+}
+
+/* ---- ViewSelector 下拉 ---- */
+.view-selector {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.view-selector__pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--wb-border-default);
+  border-radius: 6px;
+  background: var(--wb-bg-primary);
+  color: var(--wb-text-strong);
+  font-size: 12px;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+.view-selector__pill:hover {
+  background: var(--wb-bg-hover);
+}
+.view-selector__pill--open {
+  border-color: var(--wb-brand);
+}
+.view-selector__icon {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  color: var(--wb-text-medium);
+}
+.view-selector__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.view-selector__chevron {
+  flex: none;
+  color: var(--wb-text-weak);
+  transition: transform 0.15s ease;
+}
+.view-selector__chevron--up {
+  transform: rotate(180deg);
+}
+.view-selector__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--wb-bg-primary);
+  border: 1px solid var(--wb-border-default);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 50;
+}
+.view-selector__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--wb-text-medium);
+  font-size: 12px;
+  cursor: pointer;
+  box-sizing: border-box;
+  text-align: left;
+}
+.view-selector__option:hover {
+  background: var(--wb-bg-hover);
+  color: var(--wb-text-strong);
+}
+.view-selector__option--active {
+  color: var(--wb-brand);
+  font-weight: 600;
+}
+
+/* ---- ArtifactTabsBar 统一标签栏（拖拽排序） ---- */
+.artifact-tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.artifact-tabs__list {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding: 4px 2px;
+}
+.artifact-tabs__list::-webkit-scrollbar {
+  height: 3px;
+}
+.artifact-tabs__list--dragging {
+  cursor: grabbing;
+}
+.artifact-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  max-width: 160px;
+  height: 28px;
+  padding: 0 6px 0 8px;
+  border: 1px solid var(--wb-border-default);
+  border-radius: 6px;
+  background: var(--wb-bg-tertiary);
+  color: var(--wb-text-medium);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  box-sizing: border-box;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.artifact-tab:hover {
+  background: var(--wb-bg-hover);
+  color: var(--wb-text-strong);
+}
+.artifact-tab--active {
+  background: var(--wb-bg-primary);
+  color: var(--wb-text-strong);
+  border-color: var(--wb-brand);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.artifact-tab--draggable {
+  cursor: grab;
+}
+.artifact-tab--drag-placeholder {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+.artifact-tab__icon {
+  flex: none;
+  font-size: 12px;
+  line-height: 1;
+}
+.artifact-tab__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.artifact-tab__close {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--wb-text-weak);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.artifact-tab__close:hover {
+  background: var(--wb-bg-hover);
+  color: var(--wb-text-strong);
+}
+.artifact-tab--drag-clone {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  cursor: grabbing;
+}
+
+/* ---- 文件树 ---- */
+.file-tree {
+  font-size: 12px;
+  user-select: none;
+}
+.file-tree__empty {
+  margin: 24px 8px;
+  font-size: 12px;
+  color: var(--wb-text-weak);
+  text-align: center;
+}
+.file-tree__node {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 5px;
+  color: var(--wb-text-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.file-tree__node:hover {
+  background: var(--wb-bg-hover);
+  color: var(--wb-text-strong);
+}
+.file-tree__node--selected {
+  background: var(--wb-bg-tertiary);
+  color: var(--wb-text-strong);
+  font-weight: 500;
+}
+.file-tree__node--loading {
+  color: var(--wb-text-weak);
+  cursor: default;
+}
+.file-tree__chevron {
+  flex: none;
+  color: var(--wb-text-weak);
+  transition: transform 0.12s ease;
+}
+.file-tree__chevron--open {
+  transform: rotate(90deg);
+}
+.file-tree__chevron-placeholder {
+  flex: none;
+  width: 14px;
+}
+.file-tree__icon {
+  flex: none;
+  font-size: 13px;
+  line-height: 1;
+}
+.file-tree__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- 浏览器预览工具栏（嵌入工作区面板时增强） ---- */
+.tool-side-panel .browser-preview {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+}
+.tool-side-panel .browser-preview__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--wb-border-default);
+  background: var(--wb-bg-secondary);
+  flex: none;
+  box-sizing: border-box;
+}
+.browser-preview__nav-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--wb-text-medium);
+  cursor: pointer;
+  flex: none;
+}
+.browser-preview__nav-btn:hover:not(:disabled) {
+  background: var(--wb-bg-hover);
+  color: var(--wb-text-strong);
+}
+.browser-preview__nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.browser-preview__input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--wb-border-default);
+  border-radius: 6px;
+  background: var(--wb-bg-primary);
+  color: var(--wb-text-strong);
+  font-size: 12px;
+  box-sizing: border-box;
+}
+.browser-preview__input:focus {
+  outline: none;
+  border-color: var(--wb-brand);
+}
+.browser-preview__go {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: var(--wb-brand);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.browser-preview__go:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.browser-preview__frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: none;
+  background: #fff;
+}
+.browser-preview__empty {
+  margin: 32px 16px;
+  font-size: 13px;
+  color: var(--wb-text-weak);
+  line-height: 1.6;
   text-align: center;
 }
 .tool-detail__meta {
@@ -2332,6 +2652,10 @@
 }
 .artifacts-list__main:hover {
   background: color-mix(in srgb, var(--wb-palette-black-100) 4%, transparent);
+}
+.artifacts-list__main--active {
+  background: var(--wb-bg-tertiary);
+  border-left-color: var(--wb-brand);
 }
 .artifacts-list__name {
   font-size: 13px;

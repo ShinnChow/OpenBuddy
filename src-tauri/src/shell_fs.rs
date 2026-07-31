@@ -271,6 +271,115 @@ pub async fn export_text_file(path: String, content: String) -> Result<String, S
     Ok(p.to_string_lossy().to_string())
 }
 
+/// A single directory entry returned by [`list_dir`].
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirEntry {
+    /// File/dir name (basename).
+    pub name: String,
+    /// Absolute path of the entry.
+    pub path: String,
+    /// "directory" | "file" | "other".
+    pub kind: String,
+    /// File size in bytes (directories report 0).
+    pub size: u64,
+}
+
+/// Directory names that are skipped by [`list_dir`] to keep the file tree
+/// manageable and avoid scanning VCS/build noise. Hidden entries (leading dot)
+/// are skipped separately.
+const IGNORED_DIRS: &[&str] = &[
+    "node_modules",
+    ".git",
+    ".svn",
+    ".hg",
+    "target",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    ".cache",
+    ".turbo",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".idea",
+    ".vscode",
+];
+
+/// List the immediate children of a directory (non-recursive).
+///
+/// Relative paths resolve against `cwd`. Hidden entries (leading `.`) and a
+/// curated set of noisy build/VCS directories are skipped. Capped at
+/// `max_entries` (default 2000) so a huge directory can't freeze the UI.
+#[tauri::command]
+pub async fn list_dir(
+    path: String,
+    cwd: Option<String>,
+    max_entries: Option<usize>,
+) -> Result<Vec<DirEntry>, String> {
+    let resolved = resolve_path(&path, cwd.as_deref());
+    if !resolved.exists() {
+        return Err(format!("目录不存在：{}", resolved.display()));
+    }
+    if !resolved.is_dir() {
+        return Err(format!("不是目录：{}", resolved.display()));
+    }
+    let limit = max_entries.unwrap_or(2000);
+    let read = resolved
+        .read_dir()
+        .map_err(|e| format!("读取目录失败：{e}"))?;
+
+    let mut entries: Vec<DirEntry> = Vec::new();
+    for entry in read {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue, // skip unreadable entries
+        };
+        let file_name = entry.file_name();
+        let name = file_name.to_string_lossy().to_string();
+        // Skip hidden entries (Unix dotfiles + Windows works the same by name).
+        if name.starts_with('.') {
+            continue;
+        }
+        let ft = entry.file_type();
+        let is_dir = ft.as_ref().map(|t| t.is_dir()).unwrap_or(false);
+        // Skip noisy directories (only applies to directories).
+        if is_dir && IGNORED_DIRS.iter().any(|d| *d == name) {
+            continue;
+        }
+        let is_file = ft.as_ref().map(|t| t.is_file()).unwrap_or(false);
+        let kind = if is_dir {
+            "directory"
+        } else if is_file {
+            "file"
+        } else {
+            "other"
+        };
+        let size = if is_dir {
+            0
+        } else {
+            entry.metadata().map(|m| m.len()).unwrap_or(0)
+        };
+        entries.push(DirEntry {
+            name,
+            path: entry.path().to_string_lossy().to_string(),
+            kind: kind.into(),
+            size,
+        });
+        if entries.len() >= limit {
+            break;
+        }
+    }
+    // Directories first, then files; each group alphabetical (case-insensitive).
+    entries.sort_by(|a, b| {
+        let ad = a.kind == "directory";
+        let bd = b.kind == "directory";
+        bd.cmp(&ad).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    Ok(entries)
+}
+
 /// Browse / open a directory in the file manager (implements frontend's browse_directory).
 #[tauri::command]
 pub async fn browse_directory(path: String) -> Result<(), String> {
@@ -365,5 +474,47 @@ mod tests {
         // File doesn't exist yet, but parent (root) does.
         let result = ensure_under_workspace(root, &new_file);
         assert!(result.is_ok());
+    }
+
+    // --- list_dir (logic check via direct std::fs + IGNORED_DIRS semantics) ---
+
+    #[tokio::test]
+    async fn list_dir_returns_dirs_first_then_files_sorted() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::write(root.join("b.txt"), "").unwrap();
+        std::fs::write(root.join("a.txt"), "").unwrap();
+        std::fs::create_dir_all(root.join("zdir")).unwrap();
+        std::fs::create_dir_all(root.join("adir")).unwrap();
+
+        let entries =
+            list_dir(root.to_string_lossy().to_string(), None, None).await.unwrap();
+        let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
+        // Directories first (alphabetical), then files (alphabetical).
+        assert_eq!(names, vec!["adir", "zdir", "a.txt", "b.txt"]);
+    }
+
+    #[tokio::test]
+    async fn list_dir_skips_hidden_and_ignored() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::write(root.join(".hidden"), "").unwrap();
+        std::fs::create_dir_all(root.join(".git")).unwrap();
+        std::fs::create_dir_all(root.join("node_modules")).unwrap();
+        std::fs::write(root.join("keep.txt"), "").unwrap();
+
+        let entries =
+            list_dir(root.to_string_lossy().to_string(), None, None).await.unwrap();
+        let names: Vec<String> = entries.iter().map(|e| e.name.clone()).collect();
+        assert_eq!(names, vec!["keep.txt".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn list_dir_rejects_file_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("file.txt");
+        std::fs::write(&file, "").unwrap();
+        let result = list_dir(file.to_string_lossy().to_string(), None, None).await;
+        assert!(result.is_err());
     }
 }

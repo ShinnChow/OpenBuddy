@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Composer } from "./Composer";
-import { OnboardingBanner } from "./OnboardingBanner";
 import type { ModelOption } from "./ModelSelector";
 import type { WorkspaceInfo } from "@/lib/grok-client";
 import type { AgentEntry } from "@/lib/types";
@@ -175,8 +174,6 @@ export function HomePage({
   return (
     <div className="home">
       <div className="home__inner">
-        {/* 首次运行引导(对齐 WorkBuddy onboarding):API 就绪即标记 provider 已配置。 */}
-        <OnboardingBanner completedSteps={apiReady ? ["configure_provider"] : []} />
         <header className="home__header">
           <h1 className="home__title">OpenBuddy</h1>
           <p className="home__subtitle">{mode.subtitle}</p>

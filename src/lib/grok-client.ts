@@ -982,6 +982,37 @@ export async function exportTextFile(path: string, content: string): Promise<str
   return invoke<string>("export_text_file", { path, content });
 }
 
+// ---------- filesystem: directory listing (file-tree sidebar) ----------
+
+/** A single directory entry returned by `list_dir`. */
+export interface DirEntry {
+  /** File/dir basename. */
+  name: string;
+  /** Absolute path of the entry. */
+  path: string;
+  /** "directory" | "file" | "other". */
+  kind: string;
+  /** File size in bytes (directories report 0). */
+  size: number;
+}
+
+/**
+ * List the immediate children of a directory (non-recursive).
+ * Hidden entries and noisy build/VCS directories (.git/node_modules/…) are
+ * skipped server-side. Capped at `maxEntries` (default 2000).
+ */
+export async function listDir(
+  path: string,
+  cwd?: string,
+  maxEntries?: number,
+): Promise<DirEntry[]> {
+  return invoke<DirEntry[]>("list_dir", {
+    path,
+    cwd: cwd ?? null,
+    maxEntries: maxEntries ?? null,
+  });
+}
+
 // ---------- event subscription ----------
 
 export interface GrokEventListeners {

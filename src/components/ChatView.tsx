@@ -376,6 +376,50 @@ export function ChatView({
             子代理
           </button>
         )}
+        {/* 文件树入口(对齐 WorkBuddy fileTree 视图)：打开工作区面板的文件树视图。 */}
+        {cwd && (
+          <button
+            type="button"
+            className={
+              "chatview__artifacts-toggle" +
+              (panelOpen && panelMode === "fileTree"
+                ? " chatview__artifacts-toggle--active"
+                : "")
+            }
+            onClick={() => {
+              if (panelOpen && panelMode === "fileTree") {
+                setPanelOpen(false);
+              } else {
+                setPanelMode("fileTree");
+                setPanelOpen(true);
+              }
+            }}
+            title="工作区文件树"
+          >
+            文件树
+          </button>
+        )}
+        {/* 浏览器预览入口(对齐 WorkBuddy preview 视图)：打开工作区面板的浏览器视图。 */}
+        <button
+          type="button"
+          className={
+            "chatview__artifacts-toggle" +
+            (panelOpen && panelMode === "browser"
+              ? " chatview__artifacts-toggle--active"
+              : "")
+          }
+          onClick={() => {
+            if (panelOpen && panelMode === "browser") {
+              setPanelOpen(false);
+            } else {
+              setPanelMode("browser");
+              setPanelOpen(true);
+            }
+          }}
+          title="网页预览"
+        >
+          浏览器
+        </button>
         {/* 分享 / 导出本会话(对齐 WorkBuddy share:*)。 */}
         {messages.length > 0 && (
           <ShareMenu messages={messages} onDone={onToast} />
@@ -539,6 +583,8 @@ export function ChatView({
         artifacts={artifacts}
         previewPath={previewPath}
         cwd={cwd}
+        messages={messages}
+        sessionId={sessionId ?? undefined}
         onToast={onToast}
         onClose={() => setPanelOpen(false)}
         onSelectTool={(tc) => {

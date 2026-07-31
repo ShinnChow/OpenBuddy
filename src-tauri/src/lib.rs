@@ -173,6 +173,7 @@ pub fn run() {
             shell_fs::read_file_base64,
             shell_fs::write_text_file,
             shell_fs::export_text_file,
+            shell_fs::list_dir,
             shell_fs::browse_directory,
         ])
         .run(tauri::generate_context!())
