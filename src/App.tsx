@@ -590,6 +590,12 @@ function Shell() {
   // 任务 group, a real dir = that 空间 node).
   const handleSelectWorkspace = (newCwd: string) => {
     cwdRef.current = newCwd;
+    // Refresh the workspace list so a freshly picked directory appears in the
+    // picker and sidebar without requiring an app restart.
+    void grokListWorkspaces().then((ws) => {
+      sessionsStore.getState().setWorkspaces(ws);
+      setWorkspaces(ws);
+    }).catch(() => {/* non-fatal */});
   };
 
   const handleNewSession = () => {

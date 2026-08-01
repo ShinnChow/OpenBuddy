@@ -150,23 +150,13 @@ let grok::GrokHandle { tx, rx, cancel } =
 
 ---
 
-## 3. 历史会话恢复（Phase 6 核心）
+## 3. 历史会话恢复（Phase 6 核心） ✅
 
-当前 `src/App.tsx` 的 `handleSelectSession` 只切了 sessionId，没真正加载历史：
-```ts
-const handleSelectSession = (sessionId: string) => {
-  sessionsStore.getState().setCurrent(sessionId);
-  sessionStore.getState().setSession(sessionId);
-  // TODO Phase 6: grokLoadSession to replay history into the store.
-};
-```
-
-要做：
-- [ ] 调 `grokLoadSession(sessionId, cwd)`（后端已实现 `grok_load_session` command）
-- [ ] grok 会回放 `session/update` 通知（历史消息），让它们正常流经 `applyUpdate` 重建 transcript
-- [ ] 区分"历史回放"和"实时流式"——回放时不应显示流式光标、不应让 UI 滚动跳跃。在 `session-store` 加一个 `replaying: boolean` 标志，`applyUpdate` 在 replaying 时批量累积、回放结束后一次性渲染。
-
-后端 `grok.rs:load_session` 已调 `acp::LoadSessionRequest`，grok 会自动回放 `updates.jsonl`。
+`handleSelectSession` 已完整实现：
+- [x] 调 `grokLoadSession(sessionId, cwd)`
+- [x] grok 回放 `session/update` 通知，经 `applyUpdate` 重建 transcript
+- [x] replay suppression：`setSession` 对已有缓存的会话启用抑制，`clearReplaySuppression` 在 load 完成后解除
+- [x] rewind/fork 后 `dropSessionCache` + 重新 `grokLoadSession` 刷新 UI
 
 ---
 
