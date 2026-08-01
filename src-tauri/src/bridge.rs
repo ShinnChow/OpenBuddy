@@ -271,16 +271,32 @@ async fn handle_client_message(app: &AppHandle, msg: AcpClientMessage, perms: &P
 
             let (id, rx) = perms.register(&session_id_str).await;
 
+            // Extract tool metadata from the ACP ToolCallUpdate so the frontend
+            // can display the tool kind, title, and raw input parameters.
+            let tool_call_id = req.tool_call.tool_call_id.0.as_ref().to_string();
+            let tool_kind = req
+                .tool_call
+                .fields
+                .kind
+                .as_ref()
+                .map(|k| format!("{k:?}").to_lowercase())
+                .unwrap_or_default();
+            let title = req
+                .tool_call
+                .fields
+                .title
+                .clone()
+                .or_else(|| options.first().map(|o| o.title.clone()))
+                .unwrap_or_else(|| "permission".into());
+            let raw_input = req.tool_call.fields.raw_input.clone();
+
             let frontend = PermissionFrontend {
                 request_id: id,
                 session_id: session_id_str,
-                tool_call_id: String::new(),
-                tool_kind: String::new(),
-                title: options
-                    .first()
-                    .map(|o| o.title.clone())
-                    .unwrap_or_else(|| "permission".into()),
-                raw_input: None,
+                tool_call_id,
+                tool_kind,
+                title,
+                raw_input,
                 options,
             };
             let _ = app.emit("grok://permission", frontend);

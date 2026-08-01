@@ -20,6 +20,7 @@ import { FileChangesPanel } from "./FileChangesPanel";
 import { SubagentPanel } from "./SubagentPanel";
 import { ShareMenu } from "./ShareMenu";
 import { QueuePanel } from "./QueuePanel";
+import { WorkspacePicker } from "./WorkspacePicker";
 import { useMessageQueueStore } from "@/stores/message-queue-store";
 import { buildTimeline } from "@/lib/timeline-utils";
 import {
@@ -274,6 +275,16 @@ export function ChatView({
             >
               ×
             </button>
+          </div>
+        )}
+        {/* Workspace indicator / switcher (对齐 WorkBuddy 顶栏工作目录切换)。 */}
+        {cwd && workspaces && onSelectWorkspace && (
+          <div className="chatview__workspace-bar">
+            <WorkspacePicker
+              cwd={cwd}
+              workspaces={workspaces}
+              onSelectWorkspace={onSelectWorkspace}
+            />
           </div>
         )}
         {/* Plan toggle: floating button on the right when there's a plan. */}

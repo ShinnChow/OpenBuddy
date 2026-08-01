@@ -175,7 +175,8 @@ const handleSelectSession = (sessionId: string) => {
 当前 `grok_init` 默认用 `dirs::home_dir()` 作为 cwd（`commands.rs:default_cwd`）。所有会话都绑在用户家目录。
 
 要做：
-- [ ] 顶栏或设置里加一个"切换工作目录"按钮，调 `tauri-plugin-dialog` 的 `open({ directory: true })` 选目录
+- [x] 顶栏或设置里加一个"切换工作目录"按钮，调 `tauri-plugin-dialog` 的 `open({ directory: true })` 选目录
+  → ChatView 顶栏已加 `WorkspacePicker`（复用 Composer 的组件），显示当前 cwd + 下拉切换 + 原生目录选择框
 - [ ] 选完后重新 `grok_init`（需要先支持 init 多次 / 重建 agent），或改成每个 cwd 一个 agent 实例
 - [ ] `sessions.rs:list_sessions` 已按 cwd 过滤，切 cwd 后刷新侧栏
 
@@ -187,8 +188,10 @@ const handleSelectSession = (sessionId: string) => {
 
 - [ ] 跑一轮对话让 grok 用各种工具（read_file/edit/grep/run_terminal_command/web_search），抓 `grok://update` 的实际 payload
 - [ ] 对照 `src/lib/types.ts` 的 `ToolCallContent` 类型，补全缺失的 content 类型
-- [ ] diff 视图当前是朴素的逐行对比（`ToolCallCard.tsx:DiffView`），换成真正的 unified diff（用 `diff` npm 包或 `react-diff-viewer`）
-- [ ] 工具的 `rawInput`（grok 传的工具参数）目前没显示——`bridge.rs` 的 `PermissionFrontend.raw_input` 是 `None`，因为 `RequestPermissionRequest` 的 `update` 子字段没解析。要显示工具参数需从 `update.toolCallId`/`update.title` 提取
+- [x] diff 视图当前是朴素的逐行对比（`ToolCallCard.tsx:DiffView`），换成真正的 unified diff（用 `diff` npm 包或 `react-diff-viewer`）
+  → 已实现 Myers LCS unified diff（`src/lib/unified-diff.ts`），带行号、+/-/context 着色、统计
+- [x] 工具的 `rawInput`（grok 传的工具参数）目前没显示——`bridge.rs` 的 `PermissionFrontend.raw_input` 是 `None`，因为 `RequestPermissionRequest` 的 `update` 子字段没解析。要显示工具参数需从 `update.toolCallId`/`update.title` 提取
+  → bridge.rs 已从 `req.tool_call` 提取 `tool_call_id`/`kind`/`title`/`raw_input`，PermissionDialog 已渲染
 
 ---
 

@@ -312,6 +312,22 @@
   padding: 8px 24px 20px;
   box-sizing: border-box;
 }
+.chatview__workspace-bar {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  z-index: 30;
+}
+.chatview__workspace-bar .workspace-picker__trigger {
+  height: 26px;
+  font-size: 11px;
+  padding: 0 8px;
+  border-radius: 6px;
+  opacity: 0.85;
+}
+.chatview__workspace-bar .workspace-picker__trigger:hover {
+  opacity: 1;
+}
 .chatview__artifacts-toggle {
   position: absolute;
   top: 56px;
