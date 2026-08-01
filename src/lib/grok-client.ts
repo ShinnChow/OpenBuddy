@@ -144,6 +144,11 @@ export async function grokCancel(sessionId: string): Promise<void> {
   await invoke<void>("grok_cancel", { sessionId });
 }
 
+/** Cleanly shut down the agent so `grokInit` can be called again to restart. */
+export async function grokShutdown(): Promise<void> {
+  await invoke<void>("grok_shutdown");
+}
+
 /**
  * Rename a session via grok's `x.ai/session/rename` extension method. grok
  * writes `generated_title` + `title_is_manual=true` to summary.json and

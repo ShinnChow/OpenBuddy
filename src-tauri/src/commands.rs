@@ -260,6 +260,19 @@ pub async fn grok_cancel(
         .map_err(|e| e.to_string())
 }
 
+/// Cleanly shut down the agent (cancel token + clear state) so the frontend
+/// can call `grok_init` again to restart. Used after `grok://agent-died`.
+#[tauri::command]
+pub async fn grok_shutdown(state: State<'_, AppState>) -> Result<(), String> {
+    // Trigger the cancel token so the agent thread's `cancelled().await` resolves.
+    if let Some(handle) = state.handle.lock().unwrap().take() {
+        handle.cancel.cancel();
+    }
+    state.tx.lock().unwrap().take();
+    tracing::info!("grok agent shut down (ready for re-init)");
+    Ok(())
+}
+
 /// Resolve a pending permission request from the frontend.
 #[tauri::command]
 pub async fn grok_resolve_permission(

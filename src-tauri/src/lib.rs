@@ -49,6 +49,7 @@ pub fn run() {
             commands::grok_list_workspaces,
             commands::grok_send,
             commands::grok_cancel,
+            commands::grok_shutdown,
             commands::grok_resolve_permission,
             commands::grok_resolve_question,
             commands::grok_rename_session,

@@ -221,6 +221,7 @@ async fn handle_client_message(app: &AppHandle, msg: AcpClientMessage, perms: &P
         AcpClientMessage::SessionNotification(b) => {
             let update = serialize_session_update(&b.request.update);
             let sid = b.request.session_id.0.as_ref().to_string();
+            tracing::debug!(session_id = %sid, update = %update, "grok://update");
             let _ = app.emit(
                 "grok://update",
                 UpdateEvent {
