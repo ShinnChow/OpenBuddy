@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::State;
+use tauri::{Emitter, State};
 
 use crate::bridge::{PermissionOutcome, Permissions, QuestionOutcome, Questions};
 use crate::grok::{self, GrokHandle, InitOutcome};
@@ -81,7 +81,7 @@ pub async fn grok_init(
     // (config load, first-run bundled extract under ~/.grok). Running it
     // inline would stall Tauri's tokio workers and freeze the UI.
     let spawn_cwd = cwd.clone();
-    let grok::GrokHandle { tx, rx, cancel } = tokio::task::spawn_blocking(move || {
+    let grok::GrokHandle { tx, rx, cancel, thread } = tokio::task::spawn_blocking(move || {
         grok::spawn_grok(spawn_cwd)
     })
     .await
@@ -93,7 +93,28 @@ pub async fn grok_init(
 
     // Start the dispatcher that forwards agent→client messages to events.
     // `rx` is moved in; the dispatcher owns it for the app lifetime.
-    crate::bridge::spawn_dispatcher(app, rx, permissions.share(), questions.share());
+    crate::bridge::spawn_dispatcher(app.clone(), rx, permissions.share(), questions.share());
+
+    // Monitor the agent thread: if it exits unexpectedly (panic/crash), notify
+    // the frontend so it can show a "restart agent" prompt instead of hanging.
+    if let Some(join_handle) = thread {
+        let monitor_app = app.clone();
+        let monitor_cancel = cancel.clone();
+        tokio::task::spawn_blocking(move || {
+            let result = join_handle.join();
+            // If the cancel token was triggered, this was an intentional shutdown — don't alarm.
+            if monitor_cancel.is_cancelled() {
+                return;
+            }
+            let reason = match result {
+                Ok(Ok(())) => "agent thread exited normally (unexpected)".to_string(),
+                Ok(Err(e)) => format!("agent error: {e}"),
+                Err(_) => "agent thread panicked".to_string(),
+            };
+            tracing::error!(reason = %reason, "grok agent thread died");
+            let _ = monitor_app.emit("grok://agent-died", serde_json::json!({ "reason": reason }));
+        });
+    }
 
     // Keep the cancel token so the agent thread can be stopped at shutdown.
     // (The rx half is now owned by the dispatcher; we hold only tx + cancel.)
@@ -104,6 +125,7 @@ pub async fn grok_init(
         // Unused placeholder rx — the real rx lives in the dispatcher.
         rx: placeholder_rx,
         cancel,
+        thread: None,
     });
 
     // Run the ACP lifecycle: initialize + authenticate.

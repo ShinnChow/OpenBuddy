@@ -43,6 +43,9 @@ pub struct GrokHandle {
     pub tx: AcpAgentTx,
     pub rx: AcpClientRx,
     pub cancel: CancellationToken,
+    /// JoinHandle for the agent OS thread. Used to detect unexpected exits
+    /// (panics, crashes) so the frontend can show a "restart agent" prompt.
+    pub thread: Option<std::thread::JoinHandle<Result<()>>>,
 }
 
 /// Spawn the grok agent in-process on a dedicated thread.
@@ -105,7 +108,7 @@ pub fn spawn_grok(_cwd: PathBuf) -> Result<GrokHandle> {
 
     // 5. Agent thread (!Send → own OS thread + current_thread runtime + LocalSet).
     let cancel_for_thread = cancel.clone();
-    std::thread::Builder::new()
+    let thread_handle = std::thread::Builder::new()
         .name("grok-agent".into())
         .spawn(move || -> Result<()> {
             let rt = tokio::runtime::Builder::new_current_thread()
@@ -140,6 +143,7 @@ pub fn spawn_grok(_cwd: PathBuf) -> Result<GrokHandle> {
         tx: acp_client.tx,
         rx: acp_client.rx,
         cancel,
+        thread: Some(thread_handle),
     })
 }
 

@@ -355,6 +355,12 @@ function Shell() {
             console.log('[OpenBuddy] Received grok://question:', q);
             questionStore.getState().request(q);
           },
+          onAgentDied: ({ reason }) => {
+            console.error('[OpenBuddy] Agent thread died:', reason);
+            setToast(`⚠️ AI 引擎异常退出：${reason}。请重启应用。`);
+            sessionStore.getState().setError(`AI 引擎异常退出：${reason}`);
+            reportEvent("agent_died", "error", { reason });
+          },
         });
 
         // Sidebar now shows two groups: 任务 (the inbox cwd's sessions) +
