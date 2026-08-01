@@ -2,6 +2,7 @@ import type { ToolCallView } from "@/stores/session-store";
 import type { DiffContent, CommandOutputContent } from "@/lib/types";
 import { checkCommandRisk, riskLabel } from "@/lib/command-risk";
 import { precheckCommand } from "@/lib/sandbox-guard";
+import { computeUnifiedDiff, hunksToUnifiedLines, summarizeDiff, type DiffLine } from "@/lib/unified-diff";
 import {
   detectToolRenderer,
   rendererLabel,
@@ -205,8 +206,19 @@ function DiffView({
   onOpenPath?: (path: string) => void;
 }) {
   const path = diff.path || "";
-  const oldLines = (diff.old ?? "").split("\n");
-  const newLines = (diff.new ?? "").split("\n");
+  const oldText = diff.old ?? "";
+  const newText = diff.new ?? "";
+
+  // Use proper unified diff algorithm when we have old/new text.
+  // Fall back to hunks if only hunks are provided.
+  let lines: DiffLine[];
+  if (diff.hunks && diff.hunks.length && !oldText && !newText) {
+    lines = hunksToUnifiedLines(diff.hunks);
+  } else {
+    lines = computeUnifiedDiff(oldText, newText, 3);
+  }
+
+  const summary = summarizeDiff(lines);
 
   const pathEl = path ? (
     <button
@@ -221,33 +233,27 @@ function DiffView({
     <div className="diff__path">(unknown path)</div>
   );
 
-  if (diff.hunks && diff.hunks.length) {
-    return (
-      <div className="diff">
-        {pathEl}
-        <pre className="diff__body">
-          {diff.hunks.map((h, i) => {
-            const lines: string[] = [];
-            h.old.lines.forEach((l) => lines.push("- " + l));
-            h.new.lines.forEach((l) => lines.push("+ " + l));
-            return <div key={i}>{lines.join("\n")}</div>;
-          })}
-        </pre>
-      </div>
-    );
-  }
   return (
     <div className="diff">
       {pathEl}
+      {lines.length > 0 && (
+        <div className="diff__stats">
+          <span className="diff__stats-add">+{summary.added}</span>
+          <span className="diff__stats-del">-{summary.removed}</span>
+        </div>
+      )}
       <pre className="diff__body">
-        {oldLines.map((l, i) => (
-          <div key={"o" + i} className="diff__del">
-            - {l}
-          </div>
-        ))}
-        {newLines.map((l, i) => (
-          <div key={"n" + i} className="diff__add">
-            + {l}
+        {lines.map((l, i) => (
+          <div key={i} className={`diff__line diff__line--${l.kind}`}>
+            <span className="diff__line-num">
+              {l.oldLine ?? ""}
+              {l.newLine != null && l.oldLine != null ? "," : ""}
+              {l.newLine ?? ""}
+            </span>
+            <span className="diff__line-prefix">
+              {l.kind === "add" ? "+" : l.kind === "del" ? "-" : " "}
+            </span>
+            <span className="diff__line-text">{l.text}</span>
           </div>
         ))}
       </pre>

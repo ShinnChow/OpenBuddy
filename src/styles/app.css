@@ -2797,6 +2797,30 @@ button.diff__path {
   color: #cf222e;
   background: rgba(207, 34, 46, 0.1);
 }
+/* Unified diff stats + line numbers */
+.diff__stats {
+  display: flex;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.diff__stats-add { color: #1a7f37; font-weight: 600; }
+.diff__stats-del { color: #cf222e; font-weight: 600; }
+.diff__line { display: flex; gap: 8px; line-height: 18px; }
+.diff__line--add { background: rgba(26, 127, 55, 0.1); }
+.diff__line--del { background: rgba(207, 34, 46, 0.1); }
+.diff__line-num {
+  flex: none; min-width: 40px; text-align: right;
+  color: var(--wb-text-weak); font-size: 10px; user-select: none;
+}
+.diff__line-prefix {
+  flex: none; width: 12px; text-align: center; user-select: none;
+  color: var(--wb-text-weak);
+}
+.diff__line--add .diff__line-prefix { color: #1a7f37; }
+.diff__line--del .diff__line-prefix { color: #cf222e; }
+.diff__line-text { flex: 1; white-space: pre-wrap; word-break: break-all; overflow-wrap: anywhere; }
 
 /* ---------- inline permission card (session-scoped, non-blocking) ---------- */
 .perm-inline {
