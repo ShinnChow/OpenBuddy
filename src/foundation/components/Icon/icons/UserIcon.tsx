@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO(shape:unknown): icon not auto-converted; re-implement by hand.
-export const UserIcon: any = () => null;
+import { User } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const UserIcon = createIcon(User, { strokeWidth: 1.5 });

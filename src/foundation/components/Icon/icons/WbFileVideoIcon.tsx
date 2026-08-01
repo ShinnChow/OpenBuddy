@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO: complex/unsupported icon shape; stubbed. Re-implement by hand if needed.
-export const WbFileVideoIcon: any = () => null;
+import { FileVideo } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const WbFileVideoIcon = createIcon(FileVideo, { strokeWidth: 1.5 });

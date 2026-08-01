@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO: complex icon shape; stubbed for now. Re-implement by hand.
-export const BatchOperationIcon: any = () => null;
+import { Layers } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const BatchOperationIcon = createIcon(Layers, { strokeWidth: 1.5 });

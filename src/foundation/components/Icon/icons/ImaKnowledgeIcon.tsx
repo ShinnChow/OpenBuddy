@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO(shape:unknown): icon not auto-converted; re-implement by hand.
-export const ImaKnowledgeIcon: any = () => null;
+import { Library } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const ImaKnowledgeIcon = createIcon(Library, { strokeWidth: 1.5 });

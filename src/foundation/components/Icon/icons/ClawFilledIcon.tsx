@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO(shape:unknown): icon not auto-converted; re-implement by hand.
-export const ClawFilledIcon: any = () => null;
+import { Bot } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const ClawFilledIcon = createIcon(Bot, { strokeWidth: 1.5 });

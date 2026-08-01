@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO(shape:unknown): icon not auto-converted; re-implement by hand.
-export const TencentLexiangIcon: any = () => null;
+import { BookOpen } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const TencentLexiangIcon = createIcon(BookOpen, { strokeWidth: 1.5 });

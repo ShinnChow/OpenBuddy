@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO: complex/unsupported icon shape; stubbed. Re-implement by hand if needed.
-export const PlanInProgressStatusIcon: any = () => null;
+import { LoaderCircle } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const PlanInProgressStatusIcon = createIcon(LoaderCircle, { strokeWidth: 1.5 });

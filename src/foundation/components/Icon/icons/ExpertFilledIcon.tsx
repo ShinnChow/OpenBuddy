@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO(shape:unknown): icon not auto-converted; re-implement by hand.
-export const ExpertFilledIcon: any = () => null;
+import { Headphones } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const ExpertFilledIcon = createIcon(Headphones, { strokeWidth: 1.5 });

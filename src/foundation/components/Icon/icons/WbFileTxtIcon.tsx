@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO: complex/unsupported icon shape; stubbed. Re-implement by hand if needed.
-export const WbFileTxtIcon: any = () => null;
+import { FileText } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const WbFileTxtIcon = createIcon(FileText, { strokeWidth: 1.5 });

@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO: complex/unsupported icon shape; stubbed. Re-implement by hand if needed.
-export const PlanPendingStatusIcon: any = () => null;
+import { CircleDashed } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const PlanPendingStatusIcon = createIcon(CircleDashed, { strokeWidth: 1.5 });

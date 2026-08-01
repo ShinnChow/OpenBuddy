@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO: complex/unsupported icon shape; stubbed. Re-implement by hand if needed.
-export const ProjectFilledIcon: any = () => null;
+import { FolderKanban } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const ProjectFilledIcon = createIcon(FolderKanban, { strokeWidth: 1.5 });

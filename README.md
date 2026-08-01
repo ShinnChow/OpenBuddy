@@ -68,7 +68,7 @@ If this project matters to you, please give it a ⭐ — it helps others discove
 <td width="50%" valign="top">
 
 **🎨 Pixel-close WorkBuddy UI**
-Ported `--wb-*` design tokens, the full 190-icon foundation set, and brand assets. It *looks* like WorkBuddy, because the same atoms make it up.
+Ported `--wb-*` design tokens, the full 207-icon foundation set (all implemented, no stubs), and brand assets. It *looks* like WorkBuddy, because the same atoms make it up.
 
 **⚙️ grok, in-process**
 `xai-grok-shell` + `xai-acp-lib` are path dependencies. The agent runs on its own OS thread, driven by a current-thread tokio runtime + `LocalSet`. No `child_process.spawn`.
@@ -212,7 +212,7 @@ pnpm dist:mac    # macOS: .dmg (host arch; unsigned / unnotarized)
 ```
 src/                     # React frontend
   styles/                # tokens.css / global.css / app.css
-  foundation/components/Icon/   # ported from WorkBuddy (190 icons)
+  foundation/components/Icon/   # ported from WorkBuddy (207 icons, all implemented)
   lib/                   # grok-client.ts (Tauri command wrappers) + types.ts (ACP TS mirror)
   stores/                # Zustand: session / sessions / permission / ...
   components/            # Topbar, Sidebar, HomePage, ChatView, Composer, ...
@@ -235,7 +235,7 @@ docs/                    # WINDOWS_BUILD_NOTES.md — Windows build gotchas
 
 - [x] Core layout: Sidebar / HomePage / ChatView / Composer
 - [x] In-process grok agent over ACP
-- [x] WorkBuddy design tokens & 190-icon foundation
+- [x] WorkBuddy design tokens & 207-icon foundation (all implemented, zero stubs)
 - [x] BYOK multi-provider config
 - [x] Skills / MCP / Experts surfaces
 - [x] Plan mode · Rewind · Tasks · Slash Commands · Automations
@@ -267,7 +267,7 @@ Areas that especially need help right now: **Linux packaging**, **UI polish / sc
 
 ## 🙏 Acknowledgements
 
-- **[Tencent WorkBuddy](https://workbuddy.tencent.com/)** — the design north star. OpenBuddy reuses WorkBuddy's `--wb-*` design tokens, 190-icon foundation, and brand atoms for a pixel-close visual experience.
+- **[Tencent WorkBuddy](https://workbuddy.tencent.com/)** — the design north star. OpenBuddy reuses WorkBuddy's `--wb-*` design tokens, 207-icon foundation (all implemented), and brand atoms for a pixel-close visual experience.
 - **[xai-org/grok-build](https://github.com/xai-org/grok-build)** — the embedded grok agent (`xai-grok-shell` + `xai-acp-lib`), consumed as path dependencies.
 - **[Tauri](https://tauri.app/)**, **[React](https://react.dev/)**, **[Vite](https://vitejs.dev/)** — the stack that makes a 10 MB shell feel instant.
 

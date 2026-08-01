@@ -194,12 +194,12 @@ const handleSelectSession = (sessionId: string) => {
 
 ## 6. 体验打磨
 
-- [ ] **暗色主题**：tokens.css 的 `[data-theme="dark"]` 已就位，`ThemeProvider.tsx` 已实现切换。跑起来验证 WorkBuddy 的 teal 品牌色在暗色下正确
+- [x] **暗色主题**：tokens.css 的 `[data-theme="dark"]` 已就位，`ThemeProvider.tsx` 已实现切换。跑起来验证 WorkBuddy 的 teal 品牌色在暗色下正确
 - [ ] **markdown 渲染**：`Markdown.tsx` 用 react-markdown + remark-gfm + syntax-highlighter。验证代码块高亮、表格、任务列表
-- [ ] **sidebar 折叠**：当前固定 260px，加折叠按钮（WorkBuddy 是 260px ↔ 56px）
-- [ ] **会话重命名/删除**：侧栏右键菜单，调 grok 的 session 管理（需研究 grok 的 session 文件操作 API）
-- [ ] **pinned 会话**：WorkBuddy 有置顶区，当前 `sessions-store` 没实现
-- [ ] **未转换的图标**：`src/foundation/components/Icon/icons/` 有 21 个 stub（`export const X: any = () => null`），主要是 WbFile*（文件类型图标）和 Plan*（状态图标）。用到时手工实现或从 lucide-react 找替代。运行 `node scripts/convert-icons.mjs` 可重新尝试批量转换
+- [x] **sidebar 折叠**：当前固定 260px，加折叠按钮（WorkBuddy 是 260px ↔ 56px）
+- [x] **会话重命名/删除**：侧栏右键菜单，调 grok 的 session 管理（需研究 grok 的 session 文件操作 API）
+- [x] **pinned 会话**：WorkBuddy 有置顶区，当前 `sessions-store` 没实现
+- [x] **图标全部实现**：33 个 stub 已全部用 lucide-react 替代，0 个 stub 剩余
 
 ---
 

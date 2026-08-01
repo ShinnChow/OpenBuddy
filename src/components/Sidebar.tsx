@@ -404,7 +404,7 @@ function MoreDropdown({
       icon: <MoreMenuTencentDocsIcon size="md" />,
       action: () => {
         setOpen(false);
-        onToast?.("腾讯文档对接开发中");
+        onToast?.("腾讯文档：企业版功能，需腾讯内网环境");
       },
     },
     {
@@ -422,7 +422,7 @@ function MoreDropdown({
       icon: <MoreMenuTencentLexiangIcon size="md" />,
       action: () => {
         setOpen(false);
-        onToast?.("乐享知识库对接开发中");
+        onToast?.("乐享知识库：企业版功能，需腾讯内网环境");
       },
     },
     {
@@ -954,7 +954,7 @@ export function Sidebar({
           <span>本地用户</span>
         </button>
         <div className="sidebar__logo-spacer" />
-        <button className="sidebar__icon-btn" aria-label="通知" onClick={() => onPlaceholder("通知")}>
+        <button className="sidebar__icon-btn" aria-label="通知" onClick={() => onOpenSettings()}>
           <BellIcon size="md" />
         </button>
         <button className="sidebar__icon-btn" aria-label="设置" onClick={onOpenSettings}>

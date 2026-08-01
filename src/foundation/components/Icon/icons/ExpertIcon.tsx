@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO: complex/unsupported icon shape; stubbed. Re-implement by hand if needed.
-export const ExpertIcon: any = () => null;
+import { Headphones } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const ExpertIcon = createIcon(Headphones, { strokeWidth: 1.5 });

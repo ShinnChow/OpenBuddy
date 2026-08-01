@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO(shape:unknown): icon not auto-converted; re-implement by hand.
-export const PinTopIcon: any = () => null;
+import { Pin } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const PinTopIcon = createIcon(Pin, { strokeWidth: 1.5 });

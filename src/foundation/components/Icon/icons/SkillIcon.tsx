@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO: complex/unsupported icon shape; stubbed. Re-implement by hand if needed.
-export const SkillIcon: any = () => null;
+import { Sparkles } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const SkillIcon = createIcon(Sparkles, { strokeWidth: 1.5 });

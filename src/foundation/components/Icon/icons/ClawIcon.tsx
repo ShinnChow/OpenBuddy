@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO: complex icon shape; stubbed for now. Re-implement by hand.
-export const ClawIcon: any = () => null;
+import { Bot } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const ClawIcon = createIcon(Bot, { strokeWidth: 1.5 });

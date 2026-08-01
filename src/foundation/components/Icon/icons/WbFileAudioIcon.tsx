@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO: complex/unsupported icon shape; stubbed. Re-implement by hand if needed.
-export const WbFileAudioIcon: any = () => null;
+import { FileAudio } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const WbFileAudioIcon = createIcon(FileAudio, { strokeWidth: 1.5 });

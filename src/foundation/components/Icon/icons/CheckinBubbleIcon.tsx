@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO: complex icon shape; stubbed for now. Re-implement by hand.
-export const CheckinBubbleIcon: any = () => null;
+import { CalendarCheck } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const CheckinBubbleIcon = createIcon(CalendarCheck, { strokeWidth: 1.5 });

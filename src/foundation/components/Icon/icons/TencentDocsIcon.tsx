@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO(shape:unknown): icon not auto-converted; re-implement by hand.
-export const TencentDocsIcon: any = () => null;
+import { FileText } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const TencentDocsIcon = createIcon(FileText, { strokeWidth: 1.5 });

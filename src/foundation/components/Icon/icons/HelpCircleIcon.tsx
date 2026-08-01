@@ -1,2 +1,4 @@
-// OPENBUDDY-TODO: complex/unsupported icon shape; stubbed. Re-implement by hand if needed.
-export const HelpCircleIcon: any = () => null;
+import { CircleHelp } from "lucide-react";
+import { createIcon } from "../Icon";
+
+export const HelpCircleIcon = createIcon(CircleHelp, { strokeWidth: 1.5 });
