@@ -134,19 +134,13 @@ debug = false
 `src-tauri/src/bridge.rs:228` 用 `serde_json::to_value(&acp::SessionUpdate)`。如果 `SessionUpdate` 没 derive `Serialize` 或字段名不匹配前端 TS 类型，前端 `applyUpdate` 会拿到错误结构。
 **验证方法**：在 `bridge.rs` 的 `SessionNotification` 分支加 `tracing::info!("update: {update:?}")`，对比前端收到的 payload。
 
-### 2b. `grok_init` 阻塞
-`src-tauri/src/commands.rs:63` 的 `grok_init` 是 async command，但里面调 `spawn_grok()`（含 bootstrap 的同步 I/O）会阻塞 tokio runtime，导致 UI 卡顿几秒。
-**修法**：把 `spawn_grok` 包进 `tokio::task::spawn_blocking`：
-```rust
-let grok::GrokHandle { tx, rx, cancel } =
-    tokio::task::spawn_blocking(move || grok::spawn_grok(cwd.clone()))
-    .await
-    .map_err(|e| format!("spawn task: {e}"))??;
-```
+### 2b. `grok_init` 阻塞 ✅
+已修复：`spawn_grok` 包在 `tokio::task::spawn_blocking` 里（`commands.rs:84`）。
 
-### 2c. agent 线程 panic 后无重连
-`grok.rs` 的 agent 线程若 panic，`JoinHandle` 不会被检测，前端永远卡在 "streaming"。
-**修法**：在 `spawn_grok` 里 spawn 一个监控任务，检测线程退出后通过 event 通知前端 `grok://agent-died`，前端提供"重启 agent"按钮。
+### 2c. agent 线程 panic 后无重连 ✅
+已修复：`GrokHandle` 携带 `JoinHandle`，`commands.rs` 启动 `spawn_blocking` 监控任务；
+线程异常退出时 emit `grok://agent-died`（含 reason），前端显示 toast + session error + 遥测上报。
+正常 cancel（关闭应用）不触发告警。
 
 ---
 
