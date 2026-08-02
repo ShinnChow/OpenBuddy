@@ -23,6 +23,7 @@ import { QueuePanel } from "./QueuePanel";
 import { WorkspacePicker } from "./WorkspacePicker";
 import { useMessageQueueStore } from "@/stores/message-queue-store";
 import { buildTimeline } from "@/lib/timeline-utils";
+import { formatGrokError } from "@/lib/error-format";
 import {
   requestYield,
   confirmYielded,
@@ -267,7 +268,9 @@ export function ChatView({
       <div className="chatview__main">
         {error && (
           <div className="chatview__error-banner" role="alert">
-            <span className="chatview__error-text">{error}</span>
+            <span className="chatview__error-text" style={{ whiteSpace: "pre-wrap" }}>
+              {formatGrokError(error) ?? error}
+            </span>
             <button
               className="chatview__error-close"
               onClick={() => useSessionStore.getState().setError(null)}

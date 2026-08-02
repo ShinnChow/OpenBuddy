@@ -56,6 +56,7 @@ import {
 } from "./lib/telemetry-contract";
 import { exportEventsBatch, type OtlpConfig } from "./lib/otlp-exporter";
 import { IS_MACOS } from "./lib/platform";
+import { friendlyError } from "./lib/error-format";
 
 /** Hidden markers wrapping the expert persona in the text sent to grok.
  *  The UI strips these (and everything between them) from user messages. */
@@ -262,7 +263,7 @@ function Shell() {
                 sessionStore.getState().pushUser(next.text);
                 sessionStore.getState().startStreaming();
                 grokSend(p.sessionId, next.text).catch((e) => {
-                  sessionStore.getState().setError(String(e));
+                  sessionStore.getState().setError(friendlyError(e));
                   sessionsStore.getState().upsert({ sessionId: p.sessionId, status: "failed" });
                 });
               }
@@ -499,7 +500,7 @@ function Shell() {
       console.log('[OpenBuddy] Prompt sent successfully, waiting for events...');
     } catch (e) {
       console.error('[OpenBuddy] handleSendNew error:', e);
-      sessionStore.getState().setError(String(e));
+      sessionStore.getState().setError(friendlyError(e));
       const sid = sessionStore.getState().sessionId;
       if (sid) sessionsStore.getState().upsert({ sessionId: sid, status: "failed" });
     }
@@ -518,7 +519,7 @@ function Shell() {
       sessionStore.getState().startStreaming();
       await grokSend(currentSessionId, text);
     } catch (e) {
-      sessionStore.getState().setError(String(e));
+      sessionStore.getState().setError(friendlyError(e));
       sessionsStore.getState().upsert({ sessionId: currentSessionId, status: "failed" });
     }
   };
@@ -528,7 +529,7 @@ function Shell() {
     try {
       await grokCancel(currentSessionId);
     } catch (e) {
-      sessionStore.getState().setError(String(e));
+      sessionStore.getState().setError(friendlyError(e));
     } finally {
       // Don't rely on the backend emitting a `complete` for the cancel (it may
       // be dropped by routing after a fast switch). Finalize locally so the
@@ -649,7 +650,7 @@ function Shell() {
       await grokLoadSession(sessionId, sessionCwd ?? "");
       // Populate the context-usage pill for the freshly loaded session.
     } catch (e) {
-      sessionStore.getState().setError(String(e));
+      sessionStore.getState().setError(friendlyError(e));
     } finally {
       // Replay window is over: a *new* turn's updates for this session must be
       // ingested again. (No-op when there was no cached transcript to suppress.)
@@ -665,7 +666,7 @@ function Shell() {
     sessionStore.getState().dropSessionCache(id);
     sessionStore.getState().setSession(id); // empty cache → replay refills
     void grokLoadSession(id, cwdRef.current).catch((e) =>
-      sessionStore.getState().setError(String(e))
+      sessionStore.getState().setError(friendlyError(e))
     );
   };
 
@@ -678,7 +679,7 @@ function Shell() {
     sessionsStore.getState().upsert({ sessionId: newId, title: "分叉会话", cwd });
     sessionStore.getState().setSession(newId);
     void grokLoadSession(newId, cwd).catch((e) =>
-      sessionStore.getState().setError(String(e))
+      sessionStore.getState().setError(friendlyError(e))
     );
   };
 
@@ -741,7 +742,7 @@ function Shell() {
       sessionStore.getState().startStreaming();
       await grokSend(sessionId, body);
     } catch (e) {
-      sessionStore.getState().setError(String(e));
+      sessionStore.getState().setError(friendlyError(e));
       const sid = sessionStore.getState().sessionId;
       if (sid) sessionsStore.getState().upsert({ sessionId: sid, status: "failed" });
       showToast(`启动失败：${String(e).replace(/^Error:\s*/, "")}`);
@@ -774,7 +775,7 @@ function Shell() {
       sessionStore.getState().startStreaming();
       await grokSend(sessionId, seed);
     } catch (e) {
-      sessionStore.getState().setError(String(e));
+      sessionStore.getState().setError(friendlyError(e));
       const sid = sessionStore.getState().sessionId;
       if (sid) sessionsStore.getState().upsert({ sessionId: sid, status: "failed" });
       showToast(`启动项目失败：${String(e).replace(/^Error:\s*/, "")}`);
@@ -818,7 +819,7 @@ function Shell() {
         await grokSend(sessionId, prompt);
       }
     } catch (e) {
-      sessionStore.getState().setError(String(e));
+      sessionStore.getState().setError(friendlyError(e));
       const sid = sessionStore.getState().sessionId;
       if (sid) sessionsStore.getState().upsert({ sessionId: sid, status: "failed" });
       showToast(`创建项目对话失败：${String(e).replace(/^Error:\s*/, "")}`);
