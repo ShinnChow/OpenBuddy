@@ -42,6 +42,7 @@ import type {
   SkillCatalog,
   SkillInfo,
   SlashCommand,
+  SubagentLiveEvent,
 } from "./types";
 
 import type { QuestionRequest } from "@/stores/question-store";
@@ -1048,6 +1049,8 @@ export async function subscribeGrokEvents(handlers: {
   onQuestion?: (q: QuestionRequest) => void;
   /** Fired when the agent thread dies unexpectedly (panic/crash). */
   onAgentDied?: (p: { reason: string }) => void;
+  /** Fired on subagent lifecycle (spawned/progress/finished). */
+  onSubagent?: (e: SubagentLiveEvent) => void;
 }): Promise<UnlistenFn> {
   const unlisteners: UnlistenFn[] = [];
   const wire = async <T>(event: string, cb: ((p: T) => void) | undefined) => {
@@ -1078,6 +1081,7 @@ export async function subscribeGrokEvents(handlers: {
   await wire("grok://task-update", handlers.onTaskUpdate);
   await wire<QuestionRequest>("grok://question", handlers.onQuestion);
   await wire<{ reason: string }>("grok://agent-died", handlers.onAgentDied);
+  await wire<SubagentLiveEvent>("grok://subagent", handlers.onSubagent);
 
   return () => unlisteners.forEach((u) => u());
 }

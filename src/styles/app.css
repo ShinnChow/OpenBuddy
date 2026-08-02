@@ -911,11 +911,34 @@
 .subagent-panel__row--in_progress .subagent-panel__dot {
   background: #0ea5e9;
 }
+.subagent-panel__row--running .subagent-panel__dot {
+  background: #0ea5e9;
+  animation: subagent-pulse 1.5s ease-in-out infinite;
+}
+@keyframes subagent-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
 .subagent-panel__row--completed .subagent-panel__dot {
   background: #16a34a;
 }
 .subagent-panel__row--failed .subagent-panel__dot {
   background: #dc2626;
+}
+.subagent-panel__row--cancelled .subagent-panel__dot {
+  background: #9ca3af;
+}
+.subagent-panel__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.subagent-panel__name-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .subagent-panel__name {
   flex: 1;
@@ -924,6 +947,38 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--wb-text-strong);
+}
+.subagent-panel__type {
+  flex: none;
+  font-size: 10px;
+  color: var(--wb-text-light);
+  background: var(--wb-bg-tertiary);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.subagent-panel__progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 11px;
+  color: var(--wb-text-light);
+  font-variant-numeric: tabular-nums;
+}
+.subagent-panel__progress > span {
+  white-space: nowrap;
+}
+.subagent-panel__ctx {
+  color: #d97706;
+}
+.subagent-panel__tools {
+  color: var(--wb-text-light);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.subagent-panel__error {
+  color: #dc2626;
 }
 .subagent-panel__source {
   flex: none;

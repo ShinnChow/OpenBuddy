@@ -53,3 +53,4 @@ scripts/simple-*.js
 scripts/test-*.js
 scripts/compare-dom-structure.js
 scripts/cdp-audit.py
+screenshot.png

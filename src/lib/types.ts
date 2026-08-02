@@ -478,6 +478,32 @@ export interface RunningTask {
   sessionId?: string;
 }
 
+// ---------- subagent live events (grok://subagent) ----------
+
+/** A live subagent lifecycle event forwarded from grok's `x.ai/session_notification`. */
+export interface SubagentLiveEvent {
+  /** Parent session that owns the subagent. */
+  sessionId: string;
+  /** Lifecycle phase: "spawned" | "progress" | "finished". */
+  phase: "spawned" | "progress" | "finished";
+  /** Subagent unique id (= child session id). */
+  subagentId: string;
+  childSessionId?: string;
+  description?: string;
+  subagentType?: string;
+  /** "running" (spawned/progress) or the finished status. */
+  status?: string;
+  durationMs?: number;
+  turnCount?: number;
+  toolCallCount?: number;
+  tokensUsed?: number;
+  contextWindowTokens?: number;
+  contextUsagePct?: number;
+  toolsUsed?: string[];
+  error?: string;
+  output?: string;
+}
+
 // ---------- automations (local scheduler, WorkBuddy 1:1) ----------
 
 export type ScheduleFreq = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "HOURLY";

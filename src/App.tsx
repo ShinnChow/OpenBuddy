@@ -45,6 +45,7 @@ import {
 import type { AgentEntry } from "./lib/types";
 import { useProjectsStore, type ProjectMeta } from "./stores/projects-store";
 import { useMessageQueueStore, hasActiveItems } from "./stores/message-queue-store";
+import { useSubagentStore } from "./stores/subagent-store";
 import { recordUsage, loadUsage, loadQuotaConfig } from "./lib/usage-quota";
 import { dispatchNotification } from "./lib/notify-channels";
 import {
@@ -360,6 +361,10 @@ function Shell() {
             setToast(`⚠️ AI 引擎异常退出：${reason}。请重启应用。`);
             sessionStore.getState().setError(`AI 引擎异常退出：${reason}`);
             reportEvent("agent_died", "error", { reason });
+          },
+          onSubagent: (e) => {
+            console.log('[OpenBuddy] Received grok://subagent:', e);
+            useSubagentStore.getState().applyEvent(e);
           },
         });
 

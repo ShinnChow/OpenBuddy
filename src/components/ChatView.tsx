@@ -442,7 +442,7 @@ export function ChatView({
               <FileChangesPanel messages={messages} />
             )}
             {subagentsOpen && (
-              <SubagentPanel messages={messages} tasks={undefined} />
+              <SubagentPanel messages={messages} />
             )}
             {buildTimeline(messages).map((node) => {
               // 时间线分隔符(对齐 WorkBuddy message-timeline):日期/模型切换分隔。

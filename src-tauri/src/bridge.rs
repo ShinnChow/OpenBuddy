@@ -201,6 +201,62 @@ pub struct SummaryEvent {
     pub title: String,
 }
 
+/// Payload emitted on `grok://subagent` — a live subagent lifecycle event
+/// (spawned / progress / finished). grok sends these as
+/// `x.ai/session_notification` extension notifications addressed to the
+/// parent session. We forward the relevant fields so the frontend can show
+/// live subagent progress (turns, tokens, duration, status) — aligning with
+/// WorkBuddy's team-runtime panel.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubagentEvent {
+    /// Parent session that owns the subagent.
+    pub session_id: String,
+    /// Lifecycle phase: "spawned" | "progress" | "finished".
+    pub phase: String,
+    /// Subagent unique id (= child session id).
+    pub subagent_id: String,
+    /// Child session's ACP session id (same as subagent_id for spawned/progress).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub child_session_id: Option<String>,
+    /// Human-readable description / task title.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Agent type ("general-purpose", "explore", "plan", etc.).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subagent_type: Option<String>,
+    /// Status: "running" (spawned/progress) or the finished status.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// Elapsed wall-clock time in ms.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
+    /// Number of completed turns.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_count: Option<u32>,
+    /// Total tool calls so far.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_count: Option<u32>,
+    /// Current tokens used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tokens_used: Option<u64>,
+    /// Context window capacity in tokens.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_window_tokens: Option<u64>,
+    /// Context window usage percentage (0-100).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_usage_pct: Option<u8>,
+    /// Distinct tool names called so far.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools_used: Option<Vec<String>>,
+    /// Error message (finished only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// Final output text (finished only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
+}
+
 /// Spawn the dispatcher that forwards agent→client messages to the frontend.
 pub fn spawn_dispatcher(
     app: AppHandle,
@@ -542,28 +598,123 @@ fn handle_session_notification(app: &AppHandle, params: &Value) {
         .and_then(|v| v.as_str())
         .unwrap_or("");
     tracing::info!(session_id, kind, "received x.ai/session_notification");
-    if kind == "session_summary_generated" {
-        // Accept the camelCase variant too, defensively — reading only
-        // `sessionSummary` silently drops every generated title (the event
-        // never fires and the sidebar/topbar keeps the placeholder).
-        let title = update
-            .get("session_summary")
-            .or_else(|| update.get("sessionSummary"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        if !title.is_empty() {
-            tracing::info!(session_id, title, "emitting grok://summary");
-            let _ = app.emit(
-                "grok://summary",
-                SummaryEvent {
-                    session_id: session_id.to_string(),
-                    title: title.to_string(),
-                },
-            );
-        } else {
-            tracing::warn!(session_id, "session_summary_generated but title is empty");
+    match kind {
+        "session_summary_generated" => {
+            // Accept the camelCase variant too, defensively — reading only
+            // `sessionSummary` silently drops every generated title (the event
+            // never fires and the sidebar/topbar keeps the placeholder).
+            let title = update
+                .get("session_summary")
+                .or_else(|| update.get("sessionSummary"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if !title.is_empty() {
+                tracing::info!(session_id, title, "emitting grok://summary");
+                let _ = app.emit(
+                    "grok://summary",
+                    SummaryEvent {
+                        session_id: session_id.to_string(),
+                        title: title.to_string(),
+                    },
+                );
+            } else {
+                tracing::warn!(session_id, "session_summary_generated but title is empty");
+            }
+        }
+        "subagent_spawned" | "subagent_progress" | "subagent_finished" => {
+            emit_subagent_event(app, session_id, kind, update);
+        }
+        _ => {
+            tracing::debug!(session_id, kind, "session_notification: unhandled kind, ignoring");
         }
     }
+}
+
+/// Forward subagent lifecycle events to the frontend as `grok://subagent`.
+/// grok emits `subagent_spawned` (before child starts), `subagent_progress`
+/// (every ~2s while running), and `subagent_finished` (on completion).
+fn emit_subagent_event(app: &AppHandle, parent_session_id: &str, kind: &str, update: &Value) {
+    let subagent_id = update
+        .get("subagent_id")
+        .or_else(|| update.get("subagentId"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    if subagent_id.is_empty() {
+        tracing::warn!(kind, "subagent notification missing subagent_id, skipping");
+        return;
+    }
+
+    let str_field = |key: &str| {
+        update
+            .get(key)
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+    };
+    let u64_field = |key: &str| {
+        update.get(key).and_then(|v| {
+            v.as_u64().or_else(|| v.as_f64().map(|f| f as u64))
+        })
+    };
+    let u32_field = |key: &str| {
+        u64_field(key).map(|v| v as u32)
+    };
+    let u8_field = |key: &str| {
+        u64_field(key).map(|v| v as u8)
+    };
+
+    let (phase, status) = match kind {
+        "subagent_spawned" => ("spawned".to_string(), Some("running".to_string())),
+        "subagent_progress" => ("progress".to_string(), Some("running".to_string())),
+        "subagent_finished" => {
+            let st = str_field("status").unwrap_or_else(|| "completed".to_string());
+            ("finished".to_string(), Some(st))
+        }
+        _ => return,
+    };
+
+    let tools_used = update.get("tools_used")
+        .or_else(|| update.get("toolsUsed"))
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|t| t.as_str().map(|s| s.to_string()))
+                .collect::<Vec<_>>()
+        });
+
+    let evt = SubagentEvent {
+        session_id: parent_session_id.to_string(),
+        phase,
+        subagent_id: subagent_id.clone(),
+        child_session_id: str_field("child_session_id")
+            .or_else(|| str_field("childSessionId"))
+            .or_else(|| Some(subagent_id.clone())),
+        description: str_field("description"),
+        subagent_type: str_field("subagent_type")
+            .or_else(|| str_field("subagentType")),
+        status,
+        duration_ms: u64_field("duration_ms").or_else(|| u64_field("durationMs")),
+        turn_count: u32_field("turn_count").or_else(|| u32_field("turnCount"))
+            .or_else(|| u32_field("turns")),
+        tool_call_count: u32_field("tool_call_count").or_else(|| u32_field("toolCallCount"))
+            .or_else(|| u32_field("tool_calls")),
+        tokens_used: u64_field("tokens_used").or_else(|| u64_field("tokensUsed")),
+        context_window_tokens: u64_field("context_window_tokens")
+            .or_else(|| u64_field("contextWindowTokens")),
+        context_usage_pct: u8_field("context_usage_pct")
+            .or_else(|| u8_field("contextUsagePct")),
+        tools_used,
+        error: str_field("error"),
+        output: str_field("output"),
+    };
+
+    tracing::info!(
+        session_id = %evt.session_id,
+        phase = %evt.phase,
+        subagent_id = %evt.subagent_id,
+        "emitting grok://subagent"
+    );
+    let _ = app.emit("grok://subagent", evt);
 }
 
 /// Send a MethodNotFound error on a fs/terminal response channel. We advertised
