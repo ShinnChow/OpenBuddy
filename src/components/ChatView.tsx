@@ -24,6 +24,7 @@ import { WorkspacePicker } from "./WorkspacePicker";
 import { useMessageQueueStore } from "@/stores/message-queue-store";
 import { buildTimeline } from "@/lib/timeline-utils";
 import { formatGrokError } from "@/lib/error-format";
+import { useSubagentStore } from "@/stores/subagent-store";
 import {
   requestYield,
   confirmYielded,
@@ -200,6 +201,14 @@ export function ChatView({
     setActiveTool(null);
     setPreviewPath(null);
   }, [sessionId]);
+
+  // Auto-open subagent panel when a subagent starts running.
+  const liveSubagentCount = useSubagentStore((s) =>
+    sessionId ? s.getForSession(sessionId).filter((a) => a.status === "running").length : 0,
+  );
+  useEffect(() => {
+    if (liveSubagentCount > 0) setSubagentsOpen(true);
+  }, [liveSubagentCount]);
 
   const handleOpenTool = useCallback((tc: ToolCallView) => {
     setActiveTool(tc);

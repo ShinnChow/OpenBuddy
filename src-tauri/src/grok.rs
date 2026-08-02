@@ -272,21 +272,50 @@ pub async fn load_session(tx: &AcpAgentTx, session_id: &str, cwd: &Path) -> Resu
 
 /// Send a user prompt. Returns once the agent accepts it; streamed updates
 /// arrive on the client rx channel (drained by the dispatcher in bridge.rs).
+///
+/// Automatically retries on 429 rate-limit errors with an exponential backoff
+/// (30s → 60s, max 2 retries) so transient TPM/RPM limits don't immediately
+/// surface as hard errors.
 pub async fn prompt(tx: &AcpAgentTx, session_id: &str, text: &str) -> Result<()> {
-    tracing::info!(session_id, text_len = text.len(), "openbuddy: prompt send");
-    let req = acp::PromptRequest::new(
-        session_id.to_string(),
-        vec![acp::ContentBlock::from(text)],
-    );
-    let resp: acp::PromptResponse = acp_send(req, tx)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = ?e, "openbuddy: prompt acp_send FAILED");
-            anyhow!("prompt: {e:?}")
-        })?;
-    tracing::info!(session_id, "openbuddy: prompt accepted (wait for streamed updates)");
-    let _ = resp; // PromptResponse only carries an optional messageId; stop_reason comes via events.
-    Ok(())
+    let max_retries = 2;
+    let mut delay_secs = 30u64;
+    for attempt in 0..=max_retries {
+        tracing::info!(session_id, text_len = text.len(), attempt, "openbuddy: prompt send");
+        let req = acp::PromptRequest::new(
+            session_id.to_string(),
+            vec![acp::ContentBlock::from(text)],
+        );
+        match acp_send(req, tx).await {
+            Ok(resp) => {
+                let _ = resp;
+                if attempt > 0 {
+                    tracing::info!(session_id, attempt, "openbuddy: prompt succeeded after retry");
+                } else {
+                    tracing::info!(session_id, "openbuddy: prompt accepted (wait for streamed updates)");
+                }
+                let _ = resp;
+                return Ok(());
+            }
+            Err(e) => {
+                let err_str = format!("{e:?}");
+                let is_rate_limit = err_str.contains("-32003")
+                    && (err_str.contains("429") || err_str.contains("Rate limited") || err_str.contains("rate limit"));
+                if is_rate_limit && attempt < max_retries {
+                    tracing::warn!(
+                        session_id, attempt, delay_secs,
+                        "openbuddy: prompt rate-limited, retrying after delay"
+                    );
+                    // Emit a status event so the frontend can show "retrying in Ns".
+                    tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
+                    delay_secs *= 2;
+                    continue;
+                }
+                tracing::error!(error = ?e, "openbuddy: prompt acp_send FAILED");
+                return Err(anyhow!("prompt: {e:?}"));
+            }
+        }
+    }
+    unreachable!()
 }
 
 /// Switch the model used by an existing session. Maps to grok's
