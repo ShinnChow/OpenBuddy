@@ -92,6 +92,27 @@ pub fn spawn_grok(_cwd: PathBuf) -> Result<GrokHandle> {
     // (`start_early_prefetch` + thread join). See module comment above.
     cfg.remote_settings = Some(local_remote_settings);
 
+    // BYOK model isolation: if the user has any [model.*] with a custom
+    // base_url, set endpoints.models_base_url so grok's `has_custom_endpoint()`
+    // returns true → skips loading built-in default models (gpt-5.6-terra,
+    // Claude, Kimi, etc.). Those built-ins route through grok's internal proxy
+    // (cli-chat-proxy.grok.com) which requires grok auth — a BYOK user has no
+    // grok credentials, so selecting one yields a 401 Unauthorized error.
+    if cfg.endpoints.models_base_url.is_none() {
+        if let Some(first_byok_url) = cfg
+            .config_models
+            .values()
+            .filter_map(|m| m.base_url.as_deref())
+            .find(|u| !u.is_empty())
+        {
+            cfg.endpoints.models_base_url = Some(first_byok_url.to_string());
+            tracing::info!(
+                models_base_url = %first_byok_url,
+                "BYOK: set endpoints.models_base_url to skip built-in default models"
+            );
+        }
+    }
+
     // 2. Auth: reuse ~/.grok/auth.json.
     let grok_home = grok_home_dir();
     let auth_manager = Arc::new(AuthManager::new(&grok_home, cfg.grok_com_config.clone()));
