@@ -504,6 +504,22 @@ export interface SubagentLiveEvent {
   output?: string;
 }
 
+/**
+ * A turn that ended abnormally. grok reports mid-stream failures (e.g. a 429
+ * rate limit hit while a tool was executing) via `prompt_complete` with
+ * `stopReason: "rate_limit" | "error"` rather than as a thrown error. The
+ * backend forwards these as `grok://turn-error` so the UI can surface a
+ * friendly explanation instead of silently marking the turn complete.
+ */
+export interface TurnErrorEvent {
+  sessionId: string;
+  /** "rate_limit" | "error" (mirrors grok's `stop_reason_for_turn_error`). */
+  kind: "rate_limit" | "error";
+  /** Server-provided detail (absent for rate_limit — grok omits it so the
+   *  client shows its own message). */
+  detail?: string;
+}
+
 // ---------- automations (local scheduler, WorkBuddy 1:1) ----------
 
 export type ScheduleFreq = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "HOURLY";

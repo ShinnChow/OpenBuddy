@@ -18,6 +18,7 @@ import { ToolSidePanel, type ToolSidePanelMode } from "./ToolSidePanel";
 import { FindBar, isFindHit } from "./FindBar";
 import { FileChangesPanel } from "./FileChangesPanel";
 import { SubagentPanel } from "./SubagentPanel";
+import { TeamStatusView } from "./TeamStatusView";
 import { ShareMenu } from "./ShareMenu";
 import { QueuePanel } from "./QueuePanel";
 import { WorkspacePicker } from "./WorkspacePicker";
@@ -86,6 +87,7 @@ export function ChatView({
   const [fileChangesOpen, setFileChangesOpen] = useState(false);
   // 子代理运行时面板(对齐 WorkBuddy team-runtime)。
   const [subagentsOpen, setSubagentsOpen] = useState(false);
+  const [teamsOpen, setTeamsOpen] = useState(false);
   // pause/yield(对齐 WorkBuddy session:requestYield):软暂停,保留会话上下文。
   const [yieldStore, setYieldStore] = useState<Record<string, ReturnType<typeof createYieldStore>>["k"]>(() => createYieldStore());
   const yielded = sessionId ? isYielded(yieldStore, sessionId) : false;
@@ -399,6 +401,20 @@ export function ChatView({
             子代理
           </button>
         )}
+        {/* 团队状态入口：展示已创建的专家团（create_team 工具结果）。 */}
+        {messages.length > 0 && (
+          <button
+            type="button"
+            className={
+              "chatview__artifacts-toggle" +
+              (teamsOpen ? " chatview__artifacts-toggle--active" : "")
+            }
+            onClick={() => setTeamsOpen((v) => !v)}
+            title="团队状态"
+          >
+            团队
+          </button>
+        )}
         {/* 文件树入口(对齐 WorkBuddy fileTree 视图)：打开工作区面板的文件树视图。 */}
         {cwd && (
           <button
@@ -455,6 +471,9 @@ export function ChatView({
             )}
             {subagentsOpen && (
               <SubagentPanel messages={messages} />
+            )}
+            {teamsOpen && (
+              <TeamStatusView messages={messages} />
             )}
             {buildTimeline(messages).map((node) => {
               // 时间线分隔符(对齐 WorkBuddy message-timeline):日期/模型切换分隔。

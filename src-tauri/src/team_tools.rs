@@ -11,6 +11,7 @@ use crate::agents_store::user_agents_dir_pub;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex};
 use xai_grok_tools::types::tool::{ToolKind, ToolNamespace};
 use xai_grok_tools::types::tool_metadata::ToolMetadata;
@@ -25,20 +26,25 @@ use xai_tool_types::ToolDescription;
 // ---------- 团队状态（进程级，线程安全）----------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct TeamInfo {
-    team_id: String,
-    members: Vec<TeamMember>,
-    created_at: u64,
+pub struct TeamInfo {
+    pub team_id: String,
+    pub members: Vec<TeamMember>,
+    pub created_at: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct TeamMember {
-    name: String,
-    file: String,
+pub struct TeamMember {
+    pub name: String,
+    pub file: String,
 }
 
 static TEAMS: LazyLock<Mutex<HashMap<String, TeamInfo>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// 进程级守卫：`register_tool_pack` 非幂等（grok 源码 `registry/types.rs` 明确说明
+/// 「重复注册会注册两遍工具」）。`spawn_grok` 在 agent 重启（grok_shutdown → grok_init）
+/// 时会再次调用本函数，所以用这个 flag 确保整个进程生命周期内只真正注册一次。
+static TEAM_TOOLS_REGISTERED: AtomicBool = AtomicBool::new(false);
 
 // ====================================================================
 // create_team
@@ -116,20 +122,72 @@ impl Tool for CreateTeamTool {
 
     async fn run(&self, _ctx: ToolCallContext, input: CreateTeamInput) -> Result<CreateTeamOutput, ToolError> {
         let agents_dir = user_agents_dir_pub();
+        // 去重 + 校验成员名，避免 LLM 误传带路径分隔符/后缀的名字（会写出 agent 目录外）。
+        let mut seen = std::collections::HashSet::new();
+        for member in &input.members {
+            let name = member.name.trim();
+            if name.is_empty() {
+                return Err(ToolError::invalid_arguments(
+                    "成员名不能为空".to_string(),
+                ));
+            }
+            // 拒绝路径分隔符 / 后缀 / 通配，防止 join 出 agents 目录外。
+            if name.contains('/')
+                || name.contains('\\')
+                || name.contains("..")
+                || name.contains('\0')
+                || name.ends_with(".md")
+            {
+                return Err(ToolError::invalid_arguments(
+                    format!(
+                        "成员名 '{}' 非法：不能包含路径分隔符、'..' 或 '.md' 后缀（请只用纯名称）",
+                        name
+                    ),
+                ));
+            }
+            if !seen.insert(name.to_string()) {
+                return Err(ToolError::invalid_arguments(
+                    format!("成员名 '{}' 重复出现，每个成员只能出现一次", name),
+                ));
+            }
+        }
+
         let mut registered = Vec::new();
         let mut team_members = Vec::new();
         for member in &input.members {
-            let agent_file = agents_dir.join(format!("{}.md", member.name));
+            // 用 trim 后的名字做文件查找与存储（校验已在上一个循环完成）。
+            let name = member.name.trim();
+            let agent_file = agents_dir.join(format!("{}.md", name));
             if agent_file.is_file() {
-                registered.push(member.name.clone());
+                registered.push(name.to_string());
                 team_members.push(TeamMember {
-                    name: member.name.clone(),
+                    name: name.to_string(),
                     file: agent_file.to_string_lossy().to_string(),
                 });
             } else {
+                // 成员名不匹配是团队功能最常见的报错来源：列出目录里实际存在的
+                // agent 文件，并给出目录路径，让 LLM / 用户能立刻看到可选成员。
+                let available = list_available_agents(&agents_dir);
+                let hint = if available.is_empty() {
+                    format!(
+                        "目录 {} 下还没有任何 agent 定义文件（*.md）。请先在该目录创建成员的 .md 文件。",
+                        agents_dir.display()
+                    )
+                } else {
+                    format!(
+                        "可用成员: {}。请确认名称完全匹配（区分大小写）。目录: {}",
+                        available.join(", "),
+                        agents_dir.display()
+                    )
+                };
                 return Err(ToolError::execution(
                     self.id(),
-                    format!("成员 '{}' 的 agent 文件不存在: {}", member.name, agent_file.display()),
+                    format!(
+                        "成员 '{}' 的 agent 文件不存在: {}。\n{}",
+                        name,
+                        agent_file.display(),
+                        hint
+                    ),
                 ));
             }
         }
@@ -145,11 +203,18 @@ impl Tool for CreateTeamTool {
                 created_at,
             });
         }
+        // 成功消息里强调：成员名必须与 task 工具的 subagent_type 完全一致，
+        // 否则 grok 会返回 "Unknown subagent type"。
         Ok(CreateTeamOutput {
             team_id: input.team_id.clone(),
             message: format!(
-                "团队 '{}' 已创建，{} 名成员已就绪: {}。现在可以用 task 工具按成员名称分发子任务。",
-                input.team_id, registered.len(), registered.join(", ")
+                "团队 '{}' 已创建，{} 名成员已就绪: {}。\n\
+                 用法: 调用 task 工具时，subagent_type 参数必须填写成员名（完全一致，区分大小写），\
+                 例如 {{\"subagent_type\": \"{}\", \"prompt\": \"...\"}}。",
+                input.team_id,
+                registered.len(),
+                registered.join(", "),
+                registered.first().cloned().unwrap_or_default()
             ),
             registered_members: registered,
         })
@@ -319,9 +384,37 @@ impl Tool for TeamDeleteTool {
 // 注册函数
 // ====================================================================
 
+/// 列出 agents 目录里实际存在的 `*.md` agent 定义文件名（去后缀）。
+/// 用于 `create_team` 报错时给 LLM / 用户展示可选项，降低「成员名不匹配 →
+/// Unknown subagent type」的概率。
+fn list_available_agents(agents_dir: &std::path::Path) -> Vec<String> {
+    let mut names = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(agents_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("md") {
+                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                    names.push(stem.to_string());
+                }
+            }
+        }
+    }
+    names.sort();
+    names
+}
+
 /// 注册所有 OpenBuddy 团队工具到 grok 的 ToolRegistry。
 /// 在 `spawn_grok()` 的最开头调用。
+///
+/// **幂等**：`register_tool_pack` 本身不幂等（重复调用会把同一批工具注册两遍，
+/// 见 grok 源码 `registry/types.rs` 的文档注释）。agent 重启（grok_shutdown →
+/// grok_init，例如 `grok://agent-died` 后恢复）会再次走到 `spawn_grok`，所以这里
+/// 用进程级 `AtomicBool` 守卫，确保整个进程生命周期内只真正注册一次。
 pub fn register_team_tools() {
+    if TEAM_TOOLS_REGISTERED.swap(true, Ordering::SeqCst) {
+        tracing::debug!("team tools already registered this process — skipping");
+        return;
+    }
     xai_grok_tools::registry::types::register_tool_pack(|builder| {
         builder.register::<CreateTeamTool>();
         builder.register::<TeamStatusTool>();

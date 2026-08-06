@@ -43,6 +43,7 @@ import type {
   SkillInfo,
   SlashCommand,
   SubagentLiveEvent,
+  TurnErrorEvent,
 } from "./types";
 
 import type { QuestionRequest } from "@/stores/question-store";
@@ -1051,6 +1052,11 @@ export async function subscribeGrokEvents(handlers: {
   onAgentDied?: (p: { reason: string }) => void;
   /** Fired on subagent lifecycle (spawned/progress/finished). */
   onSubagent?: (e: SubagentLiveEvent) => void;
+  /** Fired when a turn ends abnormally (`stopReason: "rate_limit" | "error"`).
+   *  grok reports mid-stream failures via `prompt_complete` with these stop
+   *  reasons rather than as a thrown error, so this event lets the UI show a
+   *  friendly message instead of silently marking the turn complete. */
+  onTurnError?: (e: TurnErrorEvent) => void;
 }): Promise<UnlistenFn> {
   const unlisteners: UnlistenFn[] = [];
   const wire = async <T>(event: string, cb: ((p: T) => void) | undefined) => {
@@ -1082,6 +1088,7 @@ export async function subscribeGrokEvents(handlers: {
   await wire<QuestionRequest>("grok://question", handlers.onQuestion);
   await wire<{ reason: string }>("grok://agent-died", handlers.onAgentDied);
   await wire<SubagentLiveEvent>("grok://subagent", handlers.onSubagent);
+  await wire<TurnErrorEvent>("grok://turn-error", handlers.onTurnError);
 
   return () => unlisteners.forEach((u) => u());
 }

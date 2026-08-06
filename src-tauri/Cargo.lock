@@ -7762,6 +7762,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "prost-reflect"
+version = "0.16.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01b80ea363c31af2de2b92e3c07ed1156628f7838c4afb4df75ee78a37fedbd1"
+dependencies = [
+ "prost",
+ "prost-types",
+]
+
+[[package]]
 name = "prost-types"
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13095,6 +13105,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "xai-grok-extra-ca"
+version = "0.1.0"
+dependencies = [
+ "reqwest 0.12.28",
+ "rustls",
+ "tracing",
+]
+
+[[package]]
 name = "xai-grok-hooks"
 version = "0.1.0"
 dependencies = [
@@ -13122,6 +13141,7 @@ dependencies = [
  "serde_json",
  "tracing",
  "xai-grok-auth",
+ "xai-grok-extra-ca",
  "xai-grok-sampler",
  "xai-grok-telemetry",
  "xai-grok-version",
@@ -13156,6 +13176,7 @@ dependencies = [
  "which",
  "xai-file-utils",
  "xai-grok-config",
+ "xai-grok-extra-ca",
  "xai-grok-telemetry",
  "xai-grok-tools",
  "xai-grok-version",
@@ -13251,6 +13272,8 @@ dependencies = [
  "tokio-util",
  "tracing",
  "uuid",
+ "xai-grok-auth",
+ "xai-grok-extra-ca",
  "xai-grok-sampling-types",
  "xai-grok-version",
 ]
@@ -13268,6 +13291,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.19",
  "tracing",
+ "xai-circuit-breaker",
  "xai-grok-compaction",
  "xai-grok-tools",
 ]
@@ -13334,7 +13358,7 @@ dependencies = [
 
 [[package]]
 name = "xai-grok-shell"
-version = "0.2.114"
+version = "0.2.120"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
@@ -13430,6 +13454,7 @@ dependencies = [
  "xai-grok-compaction",
  "xai-grok-config",
  "xai-grok-config-types",
+ "xai-grok-extra-ca",
  "xai-grok-hooks",
  "xai-grok-http",
  "xai-grok-mcp",
@@ -13528,6 +13553,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64 0.22.1",
  "bytes",
  "chrono",
  "dirs 5.0.1",
@@ -13554,11 +13580,13 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
+ "webpki-roots 0.26.11",
  "whoami",
  "xai-file-utils",
  "xai-grok-auth",
  "xai-grok-config",
  "xai-grok-env",
+ "xai-grok-extra-ca",
  "xai-grok-sampler",
  "xai-grok-secrets",
  "xai-mixpanel",
@@ -13608,6 +13636,7 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "serde_yaml",
+ "sha2 0.10.9",
  "shellexpand",
  "similar",
  "strip-ansi-escapes",
@@ -13627,8 +13656,10 @@ dependencies = [
  "xai-computer-hub-core",
  "xai-computer-hub-sdk",
  "xai-file-utils",
+ "xai-grok-auth",
  "xai-grok-config",
  "xai-grok-env",
+ "xai-grok-extra-ca",
  "xai-grok-sandbox",
  "xai-grok-tools-api",
  "xai-grok-version",
@@ -13657,7 +13688,7 @@ dependencies = [
 
 [[package]]
 name = "xai-grok-version"
-version = "0.2.114"
+version = "0.2.120"
 dependencies = [
  "semver",
 ]
@@ -13718,6 +13749,7 @@ dependencies = [
  "url",
  "urlencoding",
  "uuid",
+ "wait-timeout",
  "windows",
  "xai-acp-lib",
  "xai-codebase-graph",
@@ -13836,6 +13868,7 @@ dependencies = [
  "anyhow",
  "pbjson-build",
  "prost-build",
+ "prost-reflect",
  "tempfile",
  "tonic-prost-build",
 ]

@@ -14,12 +14,14 @@ export type ToolRenderer =
   | "edit" // edit / write
   | "read" // read_file / list_dir / grep
   | "search" // web_search / web_fetch
+  | "task" // task / 子代理派发（grok 原生子代理工具 kind=task）
   | "defer-execute" // 延迟/批量执行(defer)
   | "send-message" // 发消息/通知(IM/邮件)
   | "image-gen" // 图像生成
   | "visualizer" // 内嵌可视化组件(widget)
   | "team-create" // 创建团队/多 agent
   | "team-delete"
+  | "team-status" // 查询团队状态
   | "agent-mail"
   | "specialist" // 专家列表卡
   | "unknown";
@@ -29,12 +31,16 @@ const RENDERER_MAP: Array<{ test: RegExp; renderer: ToolRenderer }> = [
   { test: /^(edit|write|write_file|edit_file|multi_edit)$/i, renderer: "edit" },
   { test: /^(read_file|read|list_dir|ls|grep|glob)$/i, renderer: "read" },
   { test: /^(web_search|web_fetch|search)$/i, renderer: "search" },
+  // grok 原生子代理派发工具 kind="task"、id="task"。优先级高于 defer-execute
+  // 的 /task/ 子串匹配，放在 defer 之前。
+  { test: /^task$/i, renderer: "task" },
   { test: /defer/i, renderer: "defer-execute" },
   { test: /^(send_message|notify|post_message)$/i, renderer: "send-message" },
   { test: /^(image_gen|image_generation|generate_image|dall|text_to_image|draw)$/i, renderer: "image-gen" },
   { test: /^(visualizer|widget|render_widget|inline_view)$/i, renderer: "visualizer" },
   { test: /^(team_create|create_team)$/i, renderer: "team-create" },
   { test: /^(team_delete|delete_team)$/i, renderer: "team-delete" },
+  { test: /^(team_status|status)$/i, renderer: "team-status" },
   { test: /^(agent_mail|send_mail|email)$/i, renderer: "agent-mail" },
   { test: /^(specialist|expert_list)$/i, renderer: "specialist" },
 ];
@@ -60,6 +66,8 @@ export function rendererLabel(renderer: ToolRenderer): string {
       return "文件读取";
     case "search":
       return "网络搜索";
+    case "task":
+      return "子代理";
     case "defer-execute":
       return "延迟执行";
     case "send-message":
@@ -72,6 +80,8 @@ export function rendererLabel(renderer: ToolRenderer): string {
       return "创建团队";
     case "team-delete":
       return "解散团队";
+    case "team-status":
+      return "团队状态";
     case "agent-mail":
       return "邮件";
     case "specialist":
@@ -94,6 +104,8 @@ export function rendererIcon(renderer: ToolRenderer): string {
       return "📖";
     case "search":
       return "🔍";
+    case "task":
+      return "🤖";
     case "defer-execute":
       return "⏳";
     case "send-message":
@@ -106,6 +118,8 @@ export function rendererIcon(renderer: ToolRenderer): string {
       return "👥";
     case "team-delete":
       return "🗑️";
+    case "team-status":
+      return "📋";
     case "agent-mail":
       return "📧";
     case "specialist":
@@ -133,6 +147,15 @@ export function summarizeTool(tc: ToolCallView, renderer: ToolRenderer): string 
     case "image-gen": {
       const prompt = raw?.prompt ?? raw?.description;
       return typeof prompt === "string" ? `生成图像:${prompt.slice(0, 60)}` : tc.title;
+    }
+    case "task": {
+      // grok task 工具：raw_input 带 subagent_type + prompt/description。
+      const type = raw?.subagent_type ?? raw?.subagentType ?? raw?.type;
+      const desc = raw?.description ?? raw?.prompt;
+      const typeStr = typeof type === "string" ? type : "";
+      const descStr =
+        typeof desc === "string" ? (desc.length > 50 ? desc.slice(0, 50) + "…" : desc) : tc.title;
+      return typeStr ? `派发子代理 (${typeStr}): ${descStr}` : descStr;
     }
     case "team-create": {
       const members = raw?.members;

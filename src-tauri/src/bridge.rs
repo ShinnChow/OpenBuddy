@@ -192,6 +192,25 @@ pub struct CompleteEvent {
     pub stop_reason: String,
 }
 
+/// Payload emitted on `grok://turn-error` — a turn that ended abnormally
+/// (`stopReason: "rate_limit" | "error"`). grok reports mid-stream failures
+/// (e.g. a 429 hit while a tool was running) via `prompt_complete` with these
+/// stop reasons rather than as a thrown error, so without this event the
+/// frontend would silently mark the turn "complete" and the user would see no
+/// explanation for why the agent stopped mid-task.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnErrorEvent {
+    pub session_id: String,
+    /// "rate_limit" | "error" (mirrors grok's `stop_reason_for_turn_error`).
+    pub kind: String,
+    /// Server-provided detail string (null for rate_limit — grok deliberately
+    /// omits it so the client shows its own message). We forward it verbatim
+    /// when present; the frontend decides how to render.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
 /// Payload emitted on `grok://summary` — a freshly generated (or manually
 /// renamed) session title. The frontend updates the sidebar entry in place.
 #[derive(Clone, Debug, Serialize)]
@@ -308,22 +327,25 @@ async fn handle_client_message(app: &AppHandle, msg: AcpClientMessage, perms: &P
             if perm_mode == "always-approve" {
                 let auto_option = options
                     .iter()
-                    .find(|o| o.kind == "allow" || o.kind == "allow_always")
-                    .or_else(|| options.first());
-                let response = if let Some(opt) = auto_option {
-                    acp::RequestPermissionResponse::new(
+                    .find(|o| o.kind == "allow" || o.kind == "allow_always");
+                if let Some(opt) = auto_option {
+                    let response = acp::RequestPermissionResponse::new(
                         acp::RequestPermissionOutcome::Selected(
                             acp::SelectedPermissionOutcome::new(acp::PermissionOptionId::new(
                                 Arc::from(opt.option_id.as_str()),
                             )),
                         ),
-                    )
-                } else {
-                    acp::RequestPermissionResponse::new(acp::RequestPermissionOutcome::Cancelled)
-                };
-                tracing::info!(session_id = %session_id_str, "auto-approved permission (always-approve mode)");
-                let _ = b.response_tx.send(Ok(response));
-                return;
+                    );
+                    tracing::info!(session_id = %session_id_str, "auto-approved permission (always-approve mode)");
+                    let _ = b.response_tx.send(Ok(response));
+                    return;
+                }
+                // 没有 allow 选项时不静默选择 first（那可能是 deny，会让工具莫名失败）。
+                // 改为回退到下方正常的人工审批流程，把决定权交给用户。
+                tracing::info!(
+                    session_id = %session_id_str,
+                    "always-approve mode but no allow option present — falling back to manual approval"
+                );
             }
 
             let (id, rx) = perms.register(&session_id_str).await;
@@ -393,6 +415,33 @@ async fn handle_client_message(app: &AppHandle, msg: AcpClientMessage, perms: &P
                     .and_then(|v| v.as_str())
                     .unwrap_or("end_turn")
                     .to_string();
+                // grok reports mid-turn failures (429 hit while a tool was
+                // running, connection reset, etc.) via prompt_complete with
+                // stopReason "rate_limit" or "error" — NOT as a thrown error.
+                // The `agent_result` field carries the server detail for
+                // generic errors (null/absent for rate_limit). Forward both as
+                // a dedicated `grok://turn-error` so the UI can surface a
+                // friendly message instead of silently marking the turn done.
+                if stop_reason == "rate_limit" || stop_reason == "error" {
+                    let detail = params
+                        .get("agent_result")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    tracing::info!(
+                        session_id = %session_id,
+                        stop_reason = %stop_reason,
+                        detail,
+                        "turn ended abnormally — emitting grok://turn-error"
+                    );
+                    let _ = app.emit(
+                        "grok://turn-error",
+                        TurnErrorEvent {
+                            session_id: session_id.clone(),
+                            kind: stop_reason.clone(),
+                            detail,
+                        },
+                    );
+                }
                 let _ = app.emit(
                     "grok://complete",
                     CompleteEvent {

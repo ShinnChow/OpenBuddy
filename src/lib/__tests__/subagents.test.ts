@@ -16,6 +16,7 @@ function tcMsg(
   title: string,
   kind: string,
   status: "in_progress" | "completed" | "failed",
+  rawInput?: unknown,
 ): ChatMessage {
   return {
     id: toolCallId,
@@ -24,7 +25,7 @@ function tcMsg(
     parts: [
       {
         kind: "tool_call",
-        toolCall: { toolCallId, title, kind, status, content: [] },
+        toolCall: { toolCallId, title, kind, status, content: [], rawInput },
       },
     ],
   };
@@ -46,6 +47,21 @@ describe("parseSubagentName", () => {
   it("空标题回退", () => {
     expect(parseSubagentName("")).toBe("(subagent)");
   });
+  it("task 工具标题 + raw_input.subagent_type 提取类型", () => {
+    // grok 的 task 工具把派生目标放在 raw_input.subagent_type
+    expect(
+      parseSubagentName("Task: review the code", {
+        subagent_type: "general-purpose",
+        prompt: "...",
+      }),
+    ).toBe("general-purpose");
+  });
+  it("task 工具标题无 raw_input 时回退到 Task: 后的描述", () => {
+    expect(parseSubagentName("Task: review the code")).toBe("review the code");
+  });
+  it("从 raw_input.subagentType (camelCase) 提取", () => {
+    expect(parseSubagentName("running", { subagentType: "explore" })).toBe("explore");
+  });
 });
 
 describe("isSubagentTool", () => {
@@ -54,9 +70,18 @@ describe("isSubagentTool", () => {
     expect(isSubagentTool({ kind: "Subagent", status: "completed", title: "", toolCallId: "", content: [] })).toBe(true);
     expect(isSubagentTool({ kind: "spawn", status: "completed", title: "", toolCallId: "", content: [] })).toBe(true);
   });
-  it("其它 kind 不命中", () => {
-    expect(isSubagentTool({ kind: "edit", status: "completed", title: "", toolCallId: "", content: [] })).toBe(false);
-    expect(isSubagentTool({ kind: "read_file", status: "completed", title: "", toolCallId: "", content: [] })).toBe(false);
+  it("grok 原生 task 工具 (kind=task) 命中", () => {
+    expect(isSubagentTool({ kind: "task", status: "completed", title: "Task: do x", toolCallId: "toolu_1", content: [] })).toBe(true);
+  });
+  it("kind 缺省但 title 以 Task: 开头也命中（kind 序列化为 other）", () => {
+    expect(isSubagentTool({ kind: "other", status: "completed", title: "Task: explore repo", toolCallId: "x", content: [] })).toBe(true);
+  });
+  it("raw_input 带 subagent_type 字段命中", () => {
+    expect(isSubagentTool({ kind: "other", status: "completed", title: "running", toolCallId: "x", content: [], rawInput: { subagent_type: "plan" } })).toBe(true);
+  });
+  it("其它 kind / 普通 title 不命中", () => {
+    expect(isSubagentTool({ kind: "edit", status: "completed", title: "Edit x", toolCallId: "", content: [] })).toBe(false);
+    expect(isSubagentTool({ kind: "read_file", status: "completed", title: "Read y", toolCallId: "", content: [] })).toBe(false);
   });
 });
 
@@ -69,6 +94,16 @@ describe("deriveSubagents", () => {
     expect(list[0].name).toBe("coder");
     expect(list[0].isSpawn).toBe(true);
     expect(list[0].status).toBe("completed");
+  });
+  it("从 grok task 工具调用派生（kind=task + subagent_type）", () => {
+    const list = deriveSubagents([
+      tcMsg("t1", "Task: review code", "task", "in_progress", {
+        subagent_type: "general-purpose",
+      }),
+    ]);
+    expect(list).toHaveLength(1);
+    expect(list[0].name).toBe("general-purpose");
+    expect(list[0].isSpawn).toBe(true);
   });
   it("忽略非 subagent 的 tool_call", () => {
     expect(deriveSubagents([tcMsg("t1", "Edit x", "edit", "completed")])).toEqual([]);

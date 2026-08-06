@@ -367,6 +367,27 @@ function Shell() {
             console.log('[OpenBuddy] Received grok://subagent:', e);
             useSubagentStore.getState().applyEvent(e);
           },
+          onTurnError: (e) => {
+            // grok reports mid-turn failures (429 while a tool was running,
+            // connection reset, …) via prompt_complete with stopReason
+            // "rate_limit"/"error". Surface a friendly message instead of
+            // silently marking the turn complete.
+            console.warn('[OpenBuddy] Turn ended abnormally:', e);
+            // Only surface for the focused session — background sessions
+            // finalizing after a switch shouldn't hijack the error banner.
+            const currentSessionId = sessionStore.getState().sessionId;
+            if (currentSessionId && e.sessionId && e.sessionId !== currentSessionId) {
+              return;
+            }
+            const msg =
+              e.kind === "rate_limit"
+                ? "⚠️ API 速率限制已触发（执行工具期间）。请等待 1-2 分钟后重试，或缩短对话上下文（新建会话）。"
+                : e.detail
+                  ? `⚠️ 本轮执行出错：${e.detail}`
+                  : "⚠️ 本轮执行出错，请重试。";
+            sessionStore.getState().setError(msg);
+            reportEvent("turn_error", "error", { sessionId: e.sessionId, kind: e.kind });
+          },
         });
 
         // Sidebar now shows two groups: 任务 (the inbox cwd's sessions) +

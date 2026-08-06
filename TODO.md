@@ -142,6 +142,23 @@ debug = false
 线程异常退出时 emit `grok://agent-died`（含 reason），前端显示 toast + session error + 遥测上报。
 正常 cancel（关闭应用）不触发告警。
 
+### 2d. 工具/团队运行时报错修复（0.12.0）✅
+通过端到端代码追踪定位并修复了「使用工具 / 团队经常报错」的 6 个根因：
+- **Bug A**：429 重试只覆盖 prompt 发送阶段，不覆盖工具执行中途的 429。grok 通过
+  `prompt_complete` 的 `stopReason: "rate_limit"|"error"` 报告中途失败。bridge.rs 现在检测
+  这两种 stop_reason，emit `grok://turn-error`，前端显示友好提示（不再静默标完成）。
+- **Bug B**：前端 `isSubagentTool` 不识别 grok 原生 `task` 工具（kind=`task`），SubagentPanel
+  transcript 回退永远失效。已修复 `subagents.ts` 识别 task kind/title/raw_input.subagent_type。
+- **Bug C**：`register_tool_pack` 非幂等，agent 重启会重复注册团队工具。`team_tools.rs` 加
+  `AtomicBool` 进程级守卫。
+- **Bug D**：always-approve 模式无 allow 选项时回退 `options.first()`（可能是 deny），静默拒绝
+  工具。改为回退人工审批。
+- **Bug E**：`TeamInfo` 私有性导致编译 warning。改 pub 消除。
+- **Bug F**：`create_team` 成员名不匹配时报错不友好（grok 返回 "Unknown subagent type"）。
+  增加成员名校验（空/路径分隔符/重复）+ 列出可用 agent + task 用法指引。
+
+同时 grok-build 升级 0.2.114 → 0.2.120，patch02/03（已上游修复）归档到 obsolete/。
+
 ---
 
 ## 3. 历史会话恢复（Phase 6 核心） ✅
