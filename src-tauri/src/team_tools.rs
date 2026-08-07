@@ -410,14 +410,165 @@ fn list_available_agents(agents_dir: &std::path::Path) -> Vec<String> {
 /// 见 grok 源码 `registry/types.rs` 的文档注释）。agent 重启（grok_shutdown →
 /// grok_init，例如 `grok://agent-died` 后恢复）会再次走到 `spawn_grok`，所以这里
 /// 用进程级 `AtomicBool` 守卫，确保整个进程生命周期内只真正注册一次。
+///
+/// **两步注册**（缺一不可）：
+/// 1. `register_tool_pack` — 把工具的 *实现*（`Tool` trait）注册进 registry 池。
+///    没有这一步，工具不存在于 registry，finalize 时会 "not found in registry"。
+/// 2. `register_enabled_tool_configs` — 声明这些工具应进入 agent 的 *启用集*
+///    （`tool_config.tools`）。`register_tool_pack` 只让 registry 认识工具，但
+///    不把它加进任何 agent 的启用列表 —— grok 的启用集是硬编码的 curated 列表
+///    （`default_grok_build_toolset()` 等）。OpenBuddy 的 patch
+///    `02-team-tools-enabled-set.patch` 给 grok 加了 `register_enabled_tool_configs`
+///    入口，`AgentBuilder::build` 会在构造 toolset 时合并它。没有这一步，模型
+///    既看不到也调不到这些工具（表现为 "Failed to parse arguments for tool
+///    `create_team`: Tool not found"）。
 pub fn register_team_tools() {
     if TEAM_TOOLS_REGISTERED.swap(true, Ordering::SeqCst) {
         tracing::debug!("team tools already registered this process — skipping");
         return;
     }
+    // 1. 注册工具实现到 registry 池
     xai_grok_tools::registry::types::register_tool_pack(|builder| {
         builder.register::<CreateTeamTool>();
         builder.register::<TeamStatusTool>();
         builder.register::<TeamDeleteTool>();
     });
+    // 2. 声明这些工具应进入默认启用集
+    //    （ToolConfig::for_tool::<T>() 会自动推导 id = "<namespace>:<id>" 和 kind）
+    xai_grok_tools::registry::types::register_enabled_tool_configs(vec![
+        xai_grok_tools::registry::types::ToolConfig::for_tool::<CreateTeamTool>(),
+        xai_grok_tools::registry::types::ToolConfig::for_tool::<TeamStatusTool>(),
+        xai_grok_tools::registry::types::ToolConfig::for_tool::<TeamDeleteTool>(),
+    ]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 诊断：注册工具时生成的 JSON Schema 是否健全。
+    /// 用 grok 自己的 `generate_schema`（与 ToolRegistryBuilder::new() 同一条路径），
+    /// 并验证「模型按此 schema 生成的 args」能被 `serde_json::from_value::<Args>`
+    /// 正常反序列化 —— 这正是 grok `tool.rs` 里 `parse_input`/`execute` 干的事。
+    #[test]
+    fn create_team_schema_is_wellformed_and_roundtrips() {
+        let schema = xai_grok_tools::registry::types::generate_schema::<CreateTeamInput>();
+        println!("create_team schema: {}", serde_json::to_string_pretty(&schema).unwrap());
+        // schema 必须是 object 类型，且带 properties
+        assert_eq!(schema.get("type").and_then(|v| v.as_str()), Some("object"));
+        assert!(schema.get("properties").is_some(), "schema must have properties");
+
+        // 模拟模型按 schema 生成的合法 args，验证反序列化成功
+        let args = serde_json::json!({
+            "team_id": "sw-team",
+            "members": [
+                { "name": "architect", "role": "架构" },
+                { "name": "coder", "role": "编码" }
+            ],
+            "description": "软件团队"
+        });
+        let parsed: CreateTeamInput = serde_json::from_value(args).expect("args must deserialize");
+        assert_eq!(parsed.team_id, "sw-team");
+        assert_eq!(parsed.members.len(), 2);
+    }
+
+    #[test]
+    fn team_status_schema_roundtrips() {
+        let schema = xai_grok_tools::registry::types::generate_schema::<TeamStatusInput>();
+        println!("team_status schema: {}", serde_json::to_string_pretty(&schema).unwrap());
+        // team_id 可选 → 空对象也应能反序列化
+        let parsed: TeamStatusInput = serde_json::from_value(serde_json::json!({}))
+            .expect("empty args must deserialize");
+        assert!(parsed.team_id.is_none());
+    }
+
+    #[test]
+    fn team_delete_schema_roundtrips() {
+        let schema = xai_grok_tools::registry::types::generate_schema::<TeamDeleteInput>();
+        println!("team_delete schema: {}", serde_json::to_string_pretty(&schema).unwrap());
+        let parsed: TeamDeleteInput = serde_json::from_value(serde_json::json!({
+            "team_id": "x"
+        }))
+        .expect("args must deserialize");
+        assert_eq!(parsed.team_id, "x");
+        assert!(parsed.delete_files.is_none());
+    }
+
+    /// 决定性诊断：注册我们的 ToolPack 后，完整工具注册表是否仍然健全。
+    /// 模拟 ToolRegistryBuilder::new()（内置工具 + 我们的 pack），检查：
+    /// 1) 我们的 3 个工具是否在注册表里；2) 内置工具（read_file/bash/task）是否
+    ///    还在、schema 是否仍完整；3) 是否有名字冲突/覆盖。
+    #[test]
+    fn registering_team_pack_does_not_pollute_registry() {
+        // 注意：register_tool_pack 是进程级 OnceLock<Mutex<Vec>>，重复 push 会叠加。
+        // 直接构造 builder 并手动调用我们的注册逻辑（等价于 new() 里的 pack 循环）。
+        register_team_tools(); // 幂等守卫下只注册一次
+        let builder = xai_grok_tools::registry::types::ToolRegistryBuilder::new();
+        let manifest = builder.get_tools_config_raw();
+        let obj = manifest.as_object().cloned().unwrap_or_default();
+        let mut names: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();
+        names.sort();
+
+        println!("\n=== TOOL REGISTRY ({} tools) ===", names.len());
+        for n in &names {
+            let id = obj.get(*n).and_then(|e| e.get("id")).and_then(|i| i.as_str()).unwrap_or("?");
+            let st = obj.get(*n).and_then(|e| e.get("input_schema")).and_then(|s| s.get("type")).and_then(|t| t.as_str()).unwrap_or("<none>");
+            println!("  {}  (id={}, schema_type={})", n, id, st);
+        }
+
+        // 1. 我们的工具必须在
+        let our = ["GrokBuild:create_team", "GrokBuild:team_status", "GrokBuild:team_delete"];
+        for t in &our {
+            assert!(obj.contains_key(*t), "our tool {} must be registered", t);
+        }
+        // 2. 内置工具必须还在且 schema 完整（bash 的客户端名是 run_terminal_cmd）
+        for builtin in ["GrokBuild:read_file", "GrokBuild:run_terminal_cmd", "GrokBuild:task"] {
+            let e = obj.get(builtin).unwrap_or_else(|| panic!("builtin {} missing", builtin));
+            let schema = e.get("input_schema").cloned().unwrap_or_default();
+            assert_eq!(
+                schema.get("type").and_then(|v| v.as_str()),
+                Some("object"),
+                "builtin {} input_schema must be object",
+                builtin
+            );
+            assert!(
+                schema.get("properties").and_then(|p| p.as_object()).map(|p| !p.is_empty()).unwrap_or(false),
+                "builtin {} input_schema must have properties",
+                builtin
+            );
+        }
+    }
+
+    /// 验证启用集注册（这是修复"团队工具不可见/不可调用"的关键）。
+    /// register_team_tools() 必须同时把 3 个 ToolConfig 注册进启用集，
+    /// 这样 AgentBuilder::build 才会把它们合并进 agent 的 tool_config.tools，
+    /// 模型才能看到并调用这些工具。
+    #[test]
+    fn register_team_tools_declares_enabled_configs() {
+        register_team_tools();
+        // clone_（而非 take_）确保多次调用都返回完整集合——每个 session
+        // build 都需要拿到启用集，而非仅第一个。
+        let configs = xai_grok_tools::registry::types::clone_extra_enabled_tool_configs();
+        let ids: Vec<&str> = configs.iter().map(|c| c.id.as_str()).collect();
+        println!("enabled tool configs: {:?}", ids);
+        assert!(
+            ids.contains(&"GrokBuild:create_team"),
+            "create_team must be in enabled set, got: {:?}", ids
+        );
+        assert!(
+            ids.contains(&"GrokBuild:team_status"),
+            "team_status must be in enabled set, got: {:?}", ids
+        );
+        assert!(
+            ids.contains(&"GrokBuild:team_delete"),
+            "team_delete must be in enabled set, got: {:?}", ids
+        );
+        // 第二次 clone 应返回相同结果（验证不会 drain）
+        let configs2 = xai_grok_tools::registry::types::clone_extra_enabled_tool_configs();
+        assert_eq!(configs2.len(), configs.len(), "clone must not drain the registry");
+        // ToolConfig::for_tool 应自动填充 kind（capability-mode 过滤需要）
+        for c in &configs {
+            assert!(c.kind.is_some(), "tool {} kind must be populated", c.id);
+        }
+    }
 }

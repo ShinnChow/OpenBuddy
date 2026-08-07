@@ -63,8 +63,15 @@ pub struct GrokHandle {
 pub fn spawn_grok(_cwd: PathBuf) -> Result<GrokHandle> {
     // 0. Register OpenBuddy custom tools (create_team, team_status, team_delete).
     //    MUST run before the first ToolRegistryBuilder::new() (which happens
-    //    inside bootstrap below). register_tool_pack is idempotent-safe if
-    //    called multiple times (spawn_grok can be called again on restart).
+    //    inside bootstrap below). register_team_tools() is process-idempotent
+    //    (AtomicBool guard) so it's safe even if spawn_grok runs again on
+    //    agent restart (grok_shutdown → grok_init).
+    //
+    //    It performs TWO registrations (see team_tools.rs):
+    //      a. register_tool_pack — tool implementations into the registry pool
+    //      b. register_enabled_tool_configs — declare them enabled in the
+    //         agent's default toolset (without this, the model can neither see
+    //         nor call them; see patch 02-team-tools-enabled-set.patch).
     crate::team_tools::register_team_tools();
 
     // 1. Load + resolve config (~/.grok/config.toml; defaults if absent).

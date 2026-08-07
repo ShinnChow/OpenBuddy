@@ -5,6 +5,7 @@
 // table (commands) that the React frontend invokes.
 
 mod agents_store;
+mod agent_config;
 mod automations;
 mod bridge;
 mod commands;
@@ -80,6 +81,12 @@ pub fn run() {
             // agent/assistant defaults (~/.grok/config.toml [models].default + [ui].default_selected_permission)
             permission_config::agents_defaults_get,
             permission_config::agents_defaults_save,
+            // subagents config (~/.grok/config.toml [subagents].max_depth)
+            agent_config::subagents_config_get,
+            agent_config::subagents_config_save,
+            // web search config (~/.grok/config.toml [models].web_search)
+            agent_config::web_search_config_get,
+            agent_config::web_search_config_save,
             // skills (x.ai/skills/*)
             skills::skills_list,
             skills::skills_add,

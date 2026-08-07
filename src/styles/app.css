@@ -10199,6 +10199,64 @@ button.diff__path {
   outline: none;
 }
 
+/* AgentSettingsPanel — 运行时配置行（子代理深度 / Web 搜索开关） */
+.settings-input {
+  padding: 5px 9px;
+  border: 1px solid var(--wb-border-default);
+  border-radius: 6px;
+  background: var(--wb-bg-primary);
+  color: var(--wb-text-strong);
+  font-size: 12px;
+  min-width: 0;
+  flex: 1;
+}
+.settings-input:focus {
+  border-color: var(--wb-brand);
+  outline: none;
+}
+.settings-input--narrow {
+  flex: 0 0 80px;
+  text-align: center;
+}
+.settings-msg--info {
+  background: rgba(0, 132, 255, 0.08);
+  border: 1px solid rgba(0, 132, 255, 0.25);
+  color: #0066cc;
+}
+.agent-runtime-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--wb-border-subtle);
+}
+.agent-runtime-row:last-of-type {
+  border-bottom: none;
+}
+.agent-runtime-row__label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.agent-runtime-row__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wb-text-strong);
+}
+.agent-runtime-row__hint {
+  font-size: 11px;
+  color: var(--wb-text-weak);
+  line-height: 1.5;
+}
+.agent-runtime-row__control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 /* ========================================================================
  * AssistantPanel 增强 — 头像 / 模型标签 / 编辑器 / hire-expert
  * ===================================================================== */

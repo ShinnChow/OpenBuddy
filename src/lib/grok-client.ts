@@ -905,6 +905,48 @@ export async function agentsDefaultsSave(defaults: AgentDefaults): Promise<void>
   await invoke<void>("agents_defaults_save", { defaults });
 }
 
+// ---------- subagents config (~/.grok/config.toml [subagents]) ----------
+
+/** `[subagents]` config — currently exposes `max_depth` (nesting depth). */
+export interface SubagentsConfig {
+  /** Maximum subagent nesting depth (≥1). grok default = 1. */
+  maxDepth: number;
+}
+
+/** Read `[subagents].max_depth`. Returns 1 when unset. */
+export async function subagentsConfigGet(): Promise<SubagentsConfig> {
+  return invoke<SubagentsConfig>("subagents_config_get");
+}
+
+/** Write `[subagents].max_depth` (clamped ≥1). Requires agent restart. */
+export async function subagentsConfigSave(maxDepth: number): Promise<number> {
+  return invoke<number>("subagents_config_save", { maxDepth });
+}
+
+// ---------- web search config (~/.grok/config.toml [models].web_search) ----------
+
+/** `[models].web_search` config — derived enabled flag + model id. */
+export interface WebSearchConfig {
+  /** true when a web_search model is set. */
+  enabled: boolean;
+  /** Configured web_search model id (empty = none). */
+  model: string;
+}
+
+/** Read the web_search model. `enabled` is derived from whether a model is set. */
+export async function webSearchConfigGet(): Promise<WebSearchConfig> {
+  return invoke<WebSearchConfig>("web_search_config_get");
+}
+
+/** Enable/disable web search by setting/clearing `[models].web_search`.
+ *  When enabling, `model` must be a non-empty model id. Requires agent restart. */
+export async function webSearchConfigSave(
+  enable: boolean,
+  model?: string,
+): Promise<boolean> {
+  return invoke<boolean>("web_search_config_save", { enable, model });
+}
+
 // ---------- plugins + marketplace (x.ai/plugins/*, x.ai/marketplace/*) ----------
 
 import type {
