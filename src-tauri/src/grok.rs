@@ -466,3 +466,65 @@ pub async fn session_usage(tx: &AcpAgentTx, session_id: &str) -> Result<serde_js
     }));
     crate::ext::call_ext(tx, "x.ai/session/usage", params).await
 }
+
+#[cfg(test)]
+mod tests {
+    //! End-to-end smoke test for the embedded grok runtime (no model call):
+    //! spawn the agent thread, run the ACP `initialize` handshake, and create
+    //! a session. `new_session` exercises the full `AgentBuilder::build` path
+    //! — including the OpenBuddy team-tools patch (patches/grok-build/02) —
+    //! so a grok-build upgrade that breaks toolset assembly fails here rather
+    //! than at first chat in the GUI. Marked `#[ignore]`: it spawns a real
+    //! agent thread against the user's `~/.grok` config (~10s). Run with
+    //! `cargo test --lib -- --ignored spawn_smoke`.
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "spawns a real agent thread against ~/.grok (~10s)"]
+    async fn spawn_smoke_spawn_initialize_new_session() {
+        let cwd = std::env::temp_dir();
+
+        // 1. Spawn: config load → resolve_runtime_fields → bootstrap →
+        //    MvpAgent thread + team-tool registration (patch 02).
+        let handle = tokio::time::timeout(
+            std::time::Duration::from_secs(60),
+            tokio::task::spawn_blocking({
+                let cwd = cwd.clone();
+                move || spawn_grok(cwd)
+            }),
+        )
+        .await
+        .expect("spawn_grok timed out (60s)")
+        .expect("spawn task join failed")
+        .expect("spawn_grok failed");
+
+        // 2. ACP initialize handshake: protocol version + auth methods.
+        let init = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            initialize(&handle.tx),
+        )
+        .await
+        .expect("initialize timed out (30s)")
+        .expect("initialize failed");
+        assert!(init.ok, "initialize reported not-ok");
+        assert!(!init.auth_methods.is_empty(), "no auth methods advertised");
+
+        // 3. New session: runs AgentBuilder::build (patched toolset merge).
+        //    If the team-tools patch mis-lands after a grok-build upgrade,
+        //    build fails here.
+        let session_id = tokio::time::timeout(
+            std::time::Duration::from_secs(60),
+            new_session(&handle.tx, &cwd, init.default_model_id.as_deref()),
+        )
+        .await
+        .expect("new_session timed out (60s)")
+        .expect("new_session failed");
+        assert!(!session_id.is_empty(), "empty session id");
+
+        // 4. Clean shutdown: cancel the agent thread and join it.
+        handle.cancel.cancel();
+        if let Some(thread) = handle.thread {
+            let _ = tokio::task::spawn_blocking(move || thread.join()).await;
+        }
+    }
+}
