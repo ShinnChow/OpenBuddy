@@ -21,6 +21,10 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# In-process team MCP server (team_mcp.rs) — streamable-http JSON-RPC.
+# Already in Cargo.lock as a transitive dep of grok-build (axum 0.8); minimal
+# features: HTTP/1.1 + JSON body extraction + tokio IO.
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"
 uuid = { version = "1", features = ["v7"] }

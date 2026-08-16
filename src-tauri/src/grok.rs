@@ -61,18 +61,9 @@ pub struct GrokHandle {
 /// an empty `RemoteSettings` so bootstrap treats remote config as already
 /// supplied and never opens the network path.
 pub fn spawn_grok(_cwd: PathBuf) -> Result<GrokHandle> {
-    // 0. Register OpenBuddy custom tools (create_team, team_status, team_delete).
-    //    MUST run before the first ToolRegistryBuilder::new() (which happens
-    //    inside bootstrap below). register_team_tools() is process-idempotent
-    //    (AtomicBool guard) so it's safe even if spawn_grok runs again on
-    //    agent restart (grok_shutdown → grok_init).
-    //
-    //    It performs TWO registrations (see team_tools.rs):
-    //      a. register_tool_pack — tool implementations into the registry pool
-    //      b. register_enabled_tool_configs — declare them enabled in the
-    //         agent's default toolset (without this, the model can neither see
-    //         nor call them; see patch 02-team-tools-enabled-set.patch).
-    crate::team_tools::register_team_tools();
+    // Team tools 已迁移到内嵌 MCP server（team_mcp.rs，lib.rs 启动时 serve）。
+    // 这里不再需要注册 —— new_session 会把 MCP server 传给 grok，grok 以
+    // client 身份连接（工具名 openbuddy__create_team 等）。对 grok 零补丁。
 
     // 1. Load + resolve config (~/.grok/config.toml; defaults if absent).
     let raw = load_effective_config().map_err(|e| anyhow!("load config: {e}"))?;
@@ -177,7 +168,7 @@ pub fn spawn_grok(_cwd: PathBuf) -> Result<GrokHandle> {
 /// Resolve `~/.grok` in a way that avoids the `\\?\` verbatim prefix on
 /// Windows (which breaks downstream git/tools). Delegates to grok's own
 /// helper when available; falls back to `dirs` otherwise.
-fn grok_home_dir() -> PathBuf {
+pub(crate) fn grok_home_dir() -> PathBuf {
     // grok's grok_home() is in xai-grok-config (not a direct dep here). Use
     // the same logic: $GROK_HOME or ~/.grok, canonicalized via dunce.
     if let Ok(custom) = std::env::var("GROK_HOME") {
@@ -268,9 +259,22 @@ pub async fn authenticate(tx: &AcpAgentTx, method_id: &str) -> Result<()> {
 /// new_session → set_session_model two-step, which could leave the session's
 /// sampling config pinned to grok's default model (`grok-build`, which has
 /// no key in a BYOK-only setup) before the switch lands.
+///
+/// The in-process team MCP server (team_mcp.rs) rides along as a client-side
+/// `mcp_servers` entry — grok's merge gives the client layer top priority,
+/// so the team tools (`openbuddy__create_team` etc.) are live from this
+/// session's first turn. Persistent registration to config.toml happens
+/// separately after the session exists (team_mcp::persist_registration).
 pub async fn new_session(tx: &AcpAgentTx, cwd: &Path, model_id: Option<&str>) -> Result<String> {
     tracing::info!(cwd = %cwd.display(), model_id, "openbuddy: new_session send");
-    let mut req = acp::NewSessionRequest::new(cwd.to_path_buf()).mcp_servers(vec![]);
+    let mut servers = Vec::new();
+    if let Some(url) = crate::team_mcp::server_url() {
+        servers.push(acp::McpServer::Http(acp::McpServerHttp::new(
+            crate::team_mcp::MCP_SERVER_NAME,
+            url,
+        )));
+    }
+    let mut req = acp::NewSessionRequest::new(cwd.to_path_buf()).mcp_servers(servers);
     if let Some(mid) = model_id.filter(|s| !s.is_empty()) {
         let meta = serde_json::json!({ "modelId": mid });
         req = req.meta(meta.as_object().cloned());
@@ -484,8 +488,12 @@ mod tests {
     async fn spawn_smoke_spawn_initialize_new_session() {
         let cwd = std::env::temp_dir();
 
+        // 0. 先起 team MCP server —— new_session 会把它注入 grok（这是去
+        //    补丁化后的工具注入路径，替代原 patch 02）。
+        crate::team_mcp::serve();
+
         // 1. Spawn: config load → resolve_runtime_fields → bootstrap →
-        //    MvpAgent thread + team-tool registration (patch 02).
+        //    MvpAgent thread.
         let handle = tokio::time::timeout(
             std::time::Duration::from_secs(60),
             tokio::task::spawn_blocking({
@@ -509,9 +517,8 @@ mod tests {
         assert!(init.ok, "initialize reported not-ok");
         assert!(!init.auth_methods.is_empty(), "no auth methods advertised");
 
-        // 3. New session: runs AgentBuilder::build (patched toolset merge).
-        //    If the team-tools patch mis-lands after a grok-build upgrade,
-        //    build fails here.
+        // 3. New session: runs AgentBuilder::build + merges the client-side
+        //    MCP server entry (team tools live as openbuddy__* now).
         let session_id = tokio::time::timeout(
             std::time::Duration::from_secs(60),
             new_session(&handle.tx, &cwd, init.default_model_id.as_deref()),
@@ -521,7 +528,22 @@ mod tests {
         .expect("new_session failed");
         assert!(!session_id.is_empty(), "empty session id");
 
-        // 4. Clean shutdown: cancel the agent thread and join it.
+        // 4. grok 的 MCP client 必须真的连上 team MCP server（initialize
+        //    握手完成）。轮询最多 10s —— grok 异步启动 server 连接。
+        let mut connected = false;
+        for _ in 0..100 {
+            if crate::team_mcp::client_connected() {
+                connected = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        assert!(
+            connected,
+            "grok never connected to the team MCP server — tools would be missing"
+        );
+
+        // 5. Clean shutdown: cancel the agent thread and join it.
         handle.cancel.cancel();
         if let Some(thread) = handle.thread {
             let _ = tokio::task::spawn_blocking(move || thread.join()).await;

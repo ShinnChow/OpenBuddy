@@ -149,8 +149,9 @@ debug = false
   这两种 stop_reason，emit `grok://turn-error`，前端显示友好提示（不再静默标完成）。
 - **Bug B**：前端 `isSubagentTool` 不识别 grok 原生 `task` 工具（kind=`task`），SubagentPanel
   transcript 回退永远失效。已修复 `subagents.ts` 识别 task kind/title/raw_input.subagent_type。
-- **Bug C**：`register_tool_pack` 非幂等，agent 重启会重复注册团队工具。`team_tools.rs` 加
-  `AtomicBool` 进程级守卫。
+- **Bug C**：`register_tool_pack` 非幂等，agent 重启会重复注册团队工具。~~`team_tools.rs` 加
+  `AtomicBool` 进程级守卫~~（已随 0.14 的 MCP 重构过时：团队工具现由内嵌 MCP server
+  提供，`team_mcp.rs`，不再 `register_tool_pack`）。
 - **Bug D**：always-approve 模式无 allow 选项时回退 `options.first()`（可能是 deny），静默拒绝
   工具。改为回退人工审批。
 - **Bug E**：`TeamInfo` 私有性导致编译 warning。改 pub 消除。

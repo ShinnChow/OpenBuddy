@@ -38,9 +38,11 @@ const RENDERER_MAP: Array<{ test: RegExp; renderer: ToolRenderer }> = [
   { test: /^(send_message|notify|post_message)$/i, renderer: "send-message" },
   { test: /^(image_gen|image_generation|generate_image|dall|text_to_image|draw)$/i, renderer: "image-gen" },
   { test: /^(visualizer|widget|render_widget|inline_view)$/i, renderer: "visualizer" },
-  { test: /^(team_create|create_team)$/i, renderer: "team-create" },
-  { test: /^(team_delete|delete_team)$/i, renderer: "team-delete" },
-  { test: /^(team_status|status)$/i, renderer: "team-status" },
+  // 团队工具：原生名（grok 补丁时代的旧会话历史）+ MCP 限定名
+  // （openbuddy__create_team，现行的内嵌 MCP server 路径）都识别。
+  { test: /^(openbuddy__)?(team_create|create_team)$/i, renderer: "team-create" },
+  { test: /^(openbuddy__)?(team_delete|delete_team)$/i, renderer: "team-delete" },
+  { test: /^(openbuddy__)?(team_status|status)$/i, renderer: "team-status" },
   { test: /^(agent_mail|send_mail|email)$/i, renderer: "agent-mail" },
   { test: /^(specialist|expert_list)$/i, renderer: "specialist" },
 ];

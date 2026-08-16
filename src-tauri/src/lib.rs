@@ -24,7 +24,7 @@ mod sessions;
 mod shell_fs;
 mod skills;
 mod skills_catalog;
-mod team_tools;
+mod team_mcp;
 
 use bridge::{Permissions, Questions};
 use commands::AppState;
@@ -33,6 +33,10 @@ use commands::AppState;
 pub fn run() {
     // Initialize logging for debugging
     let _ = tracing_subscriber::fmt::try_init();
+
+    // Team MCP server（127.0.0.1 streamable-http）：同步 bind 后台 accept。
+    // 必须在任何 new_session 之前 —— 端口即刻写入 BOUND_PORT 供传参。
+    team_mcp::serve();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())

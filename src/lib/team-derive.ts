@@ -2,9 +2,11 @@
  * 团队状态派生纯函数 —— 从会话 transcript 解析 create_team 工具调用，
  * 提取已创建的团队与成员信息。
  *
- * OpenBuddy 的 team_tools.rs 把 create_team/team_status/team_delete 作为 grok
- * 工具注入，由 LLM 调用。这里从 tool_call 的 rawInput + content（工具结果）
- * 派生出「当前已创建的团队列表」供 TeamStatusView 展示。纯函数、无副作用。
+ * OpenBuddy 通过内嵌 MCP server（src-tauri/src/team_mcp.rs）提供
+ * openbuddy__create_team / team_status / team_delete 工具（旧会话历史里是
+ * 无前缀的原生名，两者都识别），由 LLM 调用。这里从 tool_call 的
+ * rawInput + content（工具结果）派生出「当前已创建的团队列表」供
+ * TeamStatusView 展示。纯函数、无副作用。
  */
 import type { ChatMessage } from "@/stores/session-store";
 
@@ -48,7 +50,8 @@ export function isCreateTeamTool(tc: {
   rawInput?: unknown;
 }): boolean {
   const k = (tc.kind || "").toLowerCase();
-  if (k === "create_team" || k === "team_create") return true;
+  // 原生名（旧会话）或 MCP 限定名 openbuddy__create_team（现行路径）。
+  if (k === "create_team" || k === "team_create" || k === "openbuddy__create_team") return true;
   const title = (tc.title || "").toLowerCase();
   if (title.includes("create_team") || title.includes("创建团队")) return true;
   if (tc.rawInput && typeof tc.rawInput === "object") {

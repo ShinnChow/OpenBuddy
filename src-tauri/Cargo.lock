@@ -6787,6 +6787,7 @@ version = "0.13.0"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
+ "axum",
  "base64 0.22.1",
  "chrono",
  "dirs 6.0.0",
