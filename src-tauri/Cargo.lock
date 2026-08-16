@@ -5973,12 +5973,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "md5"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ebb8d8732c6a6df3d8f032a82911cfc747e00efb95cc46e8d0acd5b5b88570c"
-
-[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12781,13 +12775,13 @@ name = "xai-chat-state"
 version = "0.1.0"
 dependencies = [
  "indexmap 2.14.0",
- "regex",
  "serde",
  "serde_json",
  "strum 0.27.2",
  "tokio",
  "tokio-util",
  "tracing",
+ "xai-compaction-transcript",
  "xai-grok-compaction",
  "xai-grok-sampling-types",
  "xai-token-estimation",
@@ -12832,6 +12826,16 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-typescript",
  "xai-grok-paths",
+]
+
+[[package]]
+name = "xai-compaction-transcript"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "serde_json",
+ "strum 0.27.2",
+ "xai-grok-sampling-types",
 ]
 
 [[package]]
@@ -12928,6 +12932,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "xai-gix-status",
+ "xai-grok-home",
  "xai-sqlite-journal",
  "xai-tty-utils",
 ]
@@ -12956,7 +12961,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "strum 0.27.2",
  "tokio",
  "tokio-stream",
  "tokio-util",
@@ -12983,6 +12987,16 @@ dependencies = [
  "thiserror 2.0.19",
  "tokio",
  "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "xai-fuzzy-file-search"
+version = "0.1.0"
+dependencies = [
+ "ignore",
+ "nucleo",
+ "serde",
  "tracing",
 ]
 
@@ -13047,6 +13061,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "xai-grok-bundle"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "flate2",
+ "prod-mc-cli-chat-proxy-types",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tar",
+ "xai-grok-config",
+]
+
+[[package]]
 name = "xai-grok-compaction"
 version = "0.1.0"
 dependencies = [
@@ -13077,6 +13105,7 @@ dependencies = [
  "tracing",
  "urlencoding",
  "which",
+ "xai-grok-home",
  "xai-grok-version",
  "xai-tty-utils",
 ]
@@ -13090,10 +13119,23 @@ dependencies = [
  "serde",
  "serde_json",
  "strum 0.27.2",
+ "toml 0.9.12+spec-1.1.0",
  "tracing",
  "xai-grok-announcements",
  "xai-grok-config",
  "xai-grok-mcp",
+]
+
+[[package]]
+name = "xai-grok-diag-server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "serde",
+ "tokio",
+ "tracing",
+ "xai-grok-version",
 ]
 
 [[package]]
@@ -13114,6 +13156,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "xai-grok-foreign-sessions"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "dirs 6.0.0",
+ "dunce",
+ "git2",
+ "libc",
+ "rusqlite",
+ "serde_json",
+ "uuid",
+ "xai-sqlite-journal",
+ "zstd",
+]
+
+[[package]]
+name = "xai-grok-home"
+version = "0.1.0"
+dependencies = [
+ "dirs 5.0.1",
+ "dunce",
+ "tracing",
+]
+
+[[package]]
 name = "xai-grok-hooks"
 version = "0.1.0"
 dependencies = [
@@ -13123,6 +13190,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shellexpand",
+ "strum 0.27.2",
  "thiserror 2.0.19",
  "tokio",
  "toml 0.9.12+spec-1.1.0",
@@ -13174,9 +13242,9 @@ dependencies = [
  "url",
  "webbrowser",
  "which",
- "xai-file-utils",
  "xai-grok-config",
  "xai-grok-extra-ca",
+ "xai-grok-session-events",
  "xai-grok-telemetry",
  "xai-grok-tools",
  "xai-grok-version",
@@ -13212,7 +13280,6 @@ dependencies = [
  "xai-grok-auth",
  "xai-grok-config-types",
  "xai-grok-http",
- "xai-grok-telemetry",
  "xai-grok-tools",
  "xai-grok-version",
  "xai-sqlite-journal",
@@ -13248,7 +13315,6 @@ dependencies = [
  "thiserror 2.0.19",
  "toml 0.9.12+spec-1.1.0",
  "tracing",
- "wait-timeout",
  "xai-grok-agent",
  "xai-grok-config",
  "xai-hooks-plugins-types",
@@ -13328,6 +13394,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "xai-grok-session-events"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "strum 0.27.2",
+ "tracing",
+]
+
+[[package]]
+name = "xai-grok-session-search"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "blake3",
+ "chrono",
+ "fs2",
+ "parking_lot",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "uuid",
+ "xai-grok-config",
+ "xai-grok-telemetry",
+ "xai-sqlite-journal",
+]
+
+[[package]]
 name = "xai-grok-shared"
 version = "0.0.0"
 dependencies = [
@@ -13358,7 +13455,7 @@ dependencies = [
 
 [[package]]
 name = "xai-grok-shell"
-version = "1.0.0"
+version = "1.0.4"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
@@ -13407,7 +13504,6 @@ dependencies = [
  "regex",
  "reqwest 0.12.28",
  "reqwest-middleware 0.4.2",
- "rusqlite",
  "rustls",
  "rustls-native-certs",
  "semver",
@@ -13444,6 +13540,7 @@ dependencies = [
  "xai-agent-lifecycle",
  "xai-chat-state",
  "xai-codebase-graph",
+ "xai-compaction-transcript",
  "xai-computer-hub-sdk",
  "xai-fast-worktree",
  "xai-file-utils",
@@ -13451,10 +13548,12 @@ dependencies = [
  "xai-grok-agent",
  "xai-grok-announcements",
  "xai-grok-auth",
+ "xai-grok-bundle",
  "xai-grok-compaction",
  "xai-grok-config",
  "xai-grok-config-types",
  "xai-grok-extra-ca",
+ "xai-grok-foreign-sessions",
  "xai-grok-hooks",
  "xai-grok-http",
  "xai-grok-mcp",
@@ -13465,6 +13564,8 @@ dependencies = [
  "xai-grok-sampler",
  "xai-grok-sampling-types",
  "xai-grok-sandbox",
+ "xai-grok-session-events",
+ "xai-grok-session-search",
  "xai-grok-shared",
  "xai-grok-shell-base",
  "xai-grok-shell-session-support",
@@ -13477,7 +13578,6 @@ dependencies = [
  "xai-hunk-tracker",
  "xai-interjection-core",
  "xai-prompt-queue",
- "xai-sqlite-journal",
  "xai-system-power",
  "xai-token-estimation",
  "xai-tool-protocol",
@@ -13517,19 +13617,14 @@ dependencies = [
 name = "xai-grok-shell-session-support"
 version = "0.1.0"
 dependencies = [
- "agent-client-protocol",
- "chrono",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
  "thiserror 2.0.19",
  "tokio",
- "tokio-util",
  "tracing",
  "xai-grok-http",
- "xai-grok-shell-base",
  "xai-grok-version",
- "xai-grok-workspace",
 ]
 
 [[package]]
@@ -13589,6 +13684,7 @@ dependencies = [
  "xai-grok-extra-ca",
  "xai-grok-sampler",
  "xai-grok-secrets",
+ "xai-grok-session-events",
  "xai-mixpanel",
  "xai-token-estimation",
 ]
@@ -13688,7 +13784,7 @@ dependencies = [
 
 [[package]]
 name = "xai-grok-version"
-version = "1.0.0"
+version = "1.0.4"
 dependencies = [
  "semver",
 ]
@@ -13702,7 +13798,6 @@ dependencies = [
  "arc-swap",
  "async-stream",
  "async-trait",
- "axum",
  "base64 0.22.1",
  "bstr",
  "chrono",
@@ -13721,14 +13816,11 @@ dependencies = [
  "indexmap 2.14.0",
  "infer 0.19.0",
  "libc",
- "md5",
  "nohash-hasher",
- "nucleo",
  "parking_lot",
  "prometheus",
  "regex",
  "reqwest 0.12.28",
- "rusqlite",
  "rustc-hash",
  "rustls",
  "serde",
@@ -13750,7 +13842,6 @@ dependencies = [
  "urlencoding",
  "uuid",
  "wait-timeout",
- "windows",
  "xai-acp-lib",
  "xai-codebase-graph",
  "xai-computer-hub-mcp-adapter",
@@ -13758,23 +13849,26 @@ dependencies = [
  "xai-fast-worktree",
  "xai-file-utils",
  "xai-fsnotify",
+ "xai-fuzzy-file-search",
  "xai-grok-agent",
  "xai-grok-auth",
  "xai-grok-config",
  "xai-grok-config-types",
+ "xai-grok-diag-server",
  "xai-grok-env",
  "xai-grok-hooks",
  "xai-grok-mcp",
  "xai-grok-paths",
  "xai-grok-sandbox",
+ "xai-grok-session-events",
  "xai-grok-telemetry",
  "xai-grok-tools",
  "xai-grok-tools-api",
  "xai-grok-version",
  "xai-grok-workspace-client",
+ "xai-grok-workspace-daemon",
  "xai-grok-workspace-types",
  "xai-hunk-tracker",
- "xai-sqlite-journal",
  "xai-tool-protocol",
  "xai-tool-runtime",
  "xai-tool-types",
@@ -13787,6 +13881,7 @@ dependencies = [
 name = "xai-grok-workspace-client"
 version = "0.1.0"
 dependencies = [
+ "semver",
  "serde",
  "serde_json",
  "thiserror 2.0.19",
@@ -13796,6 +13891,24 @@ dependencies = [
  "xai-grok-workspace-types",
  "xai-tool-protocol",
  "xai-tool-runtime",
+]
+
+[[package]]
+name = "xai-grok-workspace-daemon"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "fs2",
+ "libc",
+ "prometheus",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "windows",
+ "xai-computer-hub-sdk",
+ "xai-tty-utils",
 ]
 
 [[package]]
