@@ -20,6 +20,7 @@ import {
 import { createPortal } from "react-dom";
 import type { UnifiedTab } from "@/lib/use-unified-tabs";
 import { pickFileEmoji } from "./file-tab-icon";
+import { IS_MACOS } from "@/lib/platform";
 
 const DRAG_START_THRESHOLD = 4;
 
@@ -346,13 +347,21 @@ export function ArtifactTabsBar({
   if (tabs.length === 0) return null;
 
   return (
-    <div className="artifact-tabs" role="tablist">
+    // macOS：标签条贴窗口顶边（Overlay 标题栏），容器与最后一个标签右侧的
+    // 空白区标记为拖拽区（拖动窗口 / 双击缩放）。tab 子元素不是拖拽目标，
+    // 点击切换 / 指针拖拽排序不受影响。
+    <div
+      className="artifact-tabs"
+      role="tablist"
+      {...(IS_MACOS ? { "data-tauri-drag-region": true } : {})}
+    >
       <div
         ref={listRef}
         className={
           "artifact-tabs__list" +
           (visualOrder ? " artifact-tabs__list--dragging" : "")
         }
+        {...(IS_MACOS ? { "data-tauri-drag-region": true } : {})}
       >
         {renderedTabs.map((tab) => (
           <div

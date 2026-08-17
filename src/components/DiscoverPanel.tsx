@@ -21,8 +21,7 @@ import {
   WbFileSlideIcon,
   SparklesIcon,
   CheckIcon,
-  RefreshCwIcon,
-} from "@/foundation/components/Icon/icons";
+  RefreshCwIcon, WarningOutlineIcon } from "@/foundation/components/Icon/icons";
 import {
   agentsList,
   mcpList,
@@ -351,7 +350,7 @@ function DepChip({ label, satisfied }: { label: string; satisfied: boolean }) {
       className={`discover-dep ${satisfied ? "discover-dep--ok" : "discover-dep--miss"}`}
       title={satisfied ? "已就绪" : "未安装/未启用"}
     >
-      {satisfied ? <CheckIcon size={10} /> : "⚠"}
+      {satisfied ? <CheckIcon size={10} /> : <WarningOutlineIcon size={10} />}
       {label}
     </span>
   );

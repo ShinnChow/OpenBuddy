@@ -11,6 +11,8 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   XCloseIcon,
+  PauseIcon,
+  PlayIcon,
 } from "@/foundation/components/Icon/icons";
 
 interface QueuePanelProps {
@@ -157,7 +159,7 @@ function QueueRow({
           aria-label={paused ? "恢复" : "暂停"}
           aria-pressed={paused}
         >
-          {paused ? "▶" : "⏸"}
+          {paused ? <PlayIcon size="sm" /> : <PauseIcon size="sm" />}
         </button>
         <button
           type="button"

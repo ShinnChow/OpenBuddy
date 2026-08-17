@@ -8,6 +8,7 @@
  */
 import { useMemo, useState } from "react";
 import { useProjectsStore, PLAN_COLUMNS, type PlanStatus, type AssetItem } from "@/stores/projects-store";
+import { ChevronDownIcon, SearchIcon } from "@/foundation/components/Icon/icons";
 
 // ============================================================
 // 动态
@@ -56,10 +57,10 @@ export function PlanTab({ projectId }: { projectId: string }) {
           <button className="pd-btn" onClick={() => window.alert("添加数据源（本地演示占位）")}>+ 添加数据源</button>
         </div>
         <div className="pd-toolbar__right">
-          <button className="pd-btn">全部归属 ⌄</button>
-          <button className="pd-btn">全部来源 ⌄</button>
+          <button className="pd-btn">全部归属 <ChevronDownIcon size="sm" style={{ verticalAlign: "text-bottom" }} /></button>
+          <button className="pd-btn">全部来源 <ChevronDownIcon size="sm" style={{ verticalAlign: "text-bottom" }} /></button>
           <button className="pd-btn">批量操作</button>
-          <button className="pd-btn pd-btn--icon" aria-label="搜索">⌕</button>
+          <button className="pd-btn pd-btn--icon" aria-label="搜索"><SearchIcon size="sm" /></button>
         </div>
       </div>
 
@@ -138,8 +139,8 @@ export function TaskTab({ projectId }: { projectId: string }) {
     <div className="pd-tab">
       <div className="pd-toolbar">
         <div className="pd-toolbar__left">
-          <button className="pd-btn">全部任务 ⌄</button>
-          <button className="pd-btn">全部来源 ⌄</button>
+          <button className="pd-btn">全部任务 <ChevronDownIcon size="sm" style={{ verticalAlign: "text-bottom" }} /></button>
+          <button className="pd-btn">全部来源 <ChevronDownIcon size="sm" style={{ verticalAlign: "text-bottom" }} /></button>
           <span className="pd-toolbar__hint">你的任务是私密的，除非你共享它们</span>
         </div>
         <div className="pd-toolbar__right">
@@ -214,7 +215,7 @@ export function AssetsTab({ projectId }: { projectId: string }) {
           </span>
         </div>
         <div className="pd-toolbar__right">
-          <button className="pd-btn">全部类型 ⌄</button>
+          <button className="pd-btn">全部类型 <ChevronDownIcon size="sm" style={{ verticalAlign: "text-bottom" }} /></button>
           <input className="pd-search-inline" placeholder="搜索文件或文件夹…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
       </div>

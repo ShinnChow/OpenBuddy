@@ -87,7 +87,7 @@ export function NotifyChannelsPanel({ onToast }: { onToast?: (msg: string) => vo
               {ch.endpoint && <span className="notify-panel__row-endpoint" title={ch.endpoint}>{ch.endpoint.slice(0, 40)}{ch.endpoint.length > 40 ? "…" : ""}</span>}
               <div className="notify-panel__row-actions">
                 <button type="button" className="notify-panel__btn" onClick={() => toggle(ch.id)} title={ch.enabled ? "禁用" : "启用"}>
-                  {ch.enabled ? "●" : "○"}
+                  <span className={ch.enabled ? "notify-dot notify-dot--on" : "notify-dot"} />
                 </button>
                 <button type="button" className="notify-panel__btn" onClick={() => void testSend(ch.id)} disabled={!ch.enabled} title="测试发送">
                   测试

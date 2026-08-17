@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { ChevronDownIcon } from "@/foundation/components/Icon/icons";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   SearchIcon,
@@ -79,7 +80,7 @@ export function MyFilesPanel({ cwd, onToast }: MyFilesPanelProps) {
             className="myfiles-filter-btn"
             onClick={() => setFilterOpen(!filterOpen)}
           >
-            全部类型 ▾
+            全部类型 <ChevronDownIcon size="sm" style={{ verticalAlign: "text-bottom" }} />
           </button>
           {filterOpen && (
             <div className="myfiles-filter-dropdown">

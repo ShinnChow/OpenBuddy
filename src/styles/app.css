@@ -12453,6 +12453,9 @@ button.diff__path {
 .notify-panel__row-actions{flex:none;display:inline-flex;gap:4px}
 .notify-panel__btn{padding:2px 8px;border:1px solid var(--wb-border-default);background:var(--wb-bg-primary);color:var(--wb-text-medium);border-radius:6px;font-size:11px;cursor:pointer}
 .notify-panel__btn:hover:not(:disabled){border-color:var(--wb-brand);color:var(--wb-brand)}
+/* 启用状态圆点：CSS 绘制（文本 ●/○ U+25CF/25CB 依赖字体回退，macOS 可能异常） */
+.notify-dot{display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--wb-text-medium, #888);box-sizing:border-box;vertical-align:middle}
+.notify-dot--on{background:var(--wb-status-success, #1a7f37);border-color:var(--wb-status-success, #1a7f37)}
 .notify-panel__btn:disabled{opacity:.4;cursor:default}
 .notify-panel__btn--danger:hover{border-color:#dc2626;color:#dc2626}
 .notify-panel__empty{padding:20px;text-align:center;color:var(--wb-text-light)}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { PauseIcon } from "@/foundation/components/Icon/icons";
 import { useSessionStore, type ToolCallView } from "@/stores/session-store";
 import { useSessionsStore } from "@/stores/sessions-store";
 import { createMarkdownHostConfig } from "@/lib/markdown-host";
@@ -561,7 +562,7 @@ export function ChatView({
               onClick={handlePause}
               title="暂停生成(保留会话,可继续)"
             >
-              ⏸ 暂停
+              <PauseIcon size="sm" style={{ verticalAlign: "text-bottom" }} /> 暂停
             </button>
           )}
           {/* Rewind / fork: 会话级工具，放在输入框正上方（不再漂浮到左上角挡标题栏）。 */}
