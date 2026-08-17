@@ -3,6 +3,7 @@ import type { DiffContent, CommandOutputContent } from "@/lib/types";
 import { checkCommandRisk, riskLabel } from "@/lib/command-risk";
 import { precheckCommand } from "@/lib/sandbox-guard";
 import { computeUnifiedDiff, hunksToUnifiedLines, summarizeDiff, type DiffLine } from "@/lib/unified-diff";
+import { CheckIcon } from "@/foundation/components/Icon/icons";
 import {
   detectToolRenderer,
   rendererLabel,
@@ -33,8 +34,16 @@ export function ToolCallCard({ tc, onOpen }: ToolCallCardProps) {
   const statusLabel =
     tc.status === "completed" ? "完成" : tc.status === "failed" ? "失败" : "运行中";
 
+  // 状态符号：完成态用 SVG 对勾（文本 "✓" U+2713 在 macOS WKWebView 下依赖
+  // 字体回退，可能渲染成 tofu/emoji 样式）；"!" / "…" 是 ASCII/通用字符，安全。
   const statusMark =
-    tc.status === "completed" ? "✓" : tc.status === "failed" ? "!" : "…";
+    tc.status === "completed" ? (
+      <CheckIcon size={10} strokeWidth={3} />
+    ) : tc.status === "failed" ? (
+      "!"
+    ) : (
+      "…"
+    );
 
   const shortTitle = shortenTitle(tc.title, tc.kind);
 

@@ -26,6 +26,7 @@ import {
   ArrowUpIcon,
   ChevronDownIcon,
   AddIcon,
+  XCloseIcon,
 } from "@/foundation/components/Icon/icons";
 
 const STATUS_LABEL: Record<PlanEntryStatus, string> = {
@@ -268,10 +269,10 @@ export function PlanPanel({ sessionId, onSend, onToast }: PlanPanelProps) {
       {awaitingApproval && (
         <div className="plan-panel__approval">
           <button className="plan-panel__approve-btn" onClick={handleApprove}>
-            ✓ 批准执行
+            <CheckIcon size="sm" /> 批准执行
           </button>
           <button className="plan-panel__reject-btn" onClick={handleReject}>
-            ✗ 重新规划
+            <XCloseIcon size="sm" /> 重新规划
           </button>
         </div>
       )}

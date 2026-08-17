@@ -15,6 +15,7 @@ import {
   type PolicyRule,
   type PolicySet,
 } from "@/lib/policy-engine";
+import { CheckIcon, XCloseIcon } from "@/foundation/components/Icon/icons";
 
 const POLICY_KEY = "openbuddy.policy";
 
@@ -157,8 +158,30 @@ export function PolicySettingsPanel({ onToast: _onToast }: { onToast?: (msg: str
       <div className="policy-panel__section">
         <div className="policy-panel__section-title">策略检查(预览)</div>
         <div className="policy-panel__checks">
-          <span className={isModelAllowed(policy, "gpt-4") ? "ok" : "deny"}>gpt-4: {isModelAllowed(policy, "gpt-4") ? "✓ 允许" : "✗ 禁止"}</span>
-          <span className={canUploadSkill(policy) ? "ok" : "deny"}>技能上传: {canUploadSkill(policy) ? "✓ 允许" : "✗ 禁止"}</span>
+          <span className={isModelAllowed(policy, "gpt-4") ? "ok" : "deny"}>
+            gpt-4:{" "}
+            {isModelAllowed(policy, "gpt-4") ? (
+              <>
+                <CheckIcon size="sm" /> 允许
+              </>
+            ) : (
+              <>
+                <XCloseIcon size="sm" /> 禁止
+              </>
+            )}
+          </span>
+          <span className={canUploadSkill(policy) ? "ok" : "deny"}>
+            技能上传:{" "}
+            {canUploadSkill(policy) ? (
+              <>
+                <CheckIcon size="sm" /> 允许
+              </>
+            ) : (
+              <>
+                <XCloseIcon size="sm" /> 禁止
+              </>
+            )}
+          </span>
         </div>
       </div>
     </div>
