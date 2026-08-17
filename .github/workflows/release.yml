@@ -248,6 +248,14 @@ jobs:
     needs: [build-windows, build-macos]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout (CHANGELOG for release notes)
+        uses: actions/checkout@v4
+        with:
+          # workflow_dispatch 跑历史 tag 时也要取到该 tag 的 CHANGELOG。
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          sparse-checkout: |
+            CHANGELOG.md
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -256,13 +264,49 @@ jobs:
       - name: List downloaded artifacts
         run: find artifacts -type f
 
+      # 从 CHANGELOG.md 提取该 tag 的段落作为 Release 正文（用户可读的中文
+      # 更新说明）。取不到时回退 GitHub 自动生成的提交列表，保证不为空。
+      - name: Extract release notes
+        id: notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          VER="${TAG#v}"
+          NOTES=""
+          if [[ -f CHANGELOG.md ]]; then
+            # 取 "## vX.Y.Z" 标题行到下一个 "## " 之前的内容；
+            # 去掉尾部分隔线（---）与空行。
+            NOTES="$(awk -v ver="## ${TAG#v}" '
+              $0 ~ "^## v" {
+                if (found) exit
+                if (index($0, ver) == 1) { found = 1; next }
+              }
+              found { print }
+            ' CHANGELOG.md | sed '/^---$/d' | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}')"
+          fi
+          {
+            echo "body<<RELEASE_NOTES_EOF"
+            if [[ -n "$NOTES" ]]; then
+              echo "$NOTES"
+            else
+              echo "（CHANGELOG.md 未包含 ${TAG} 段落，以下为自动生成的提交列表）"
+              echo ""
+            fi
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "=== Release body for ${TAG} ==="
+          echo "$NOTES" | head -20
+
       - name: Create/Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           name: ${{ env.APP_NAME }} ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          body: ${{ steps.notes.outputs.body }}
           draft: false
           prerelease: false
+          # 自动生成的提交列表会追加在 body 之后（Full Changelog）。
           generate_release_notes: true
           files: |
             artifacts/windows-nsis/*.exe
