@@ -163,13 +163,19 @@ export function registerForeignUpdateListener(
  *
  * ACP (agent-client-protocol-schema 0.11.x) serializes content as:
  *   - text:  { type: "content", content: { type: "text", text: "…" } }
+ *   - image: { type: "content", content: { type: "image", data, mimeType, uri? } }
+ *   - link:  { type: "content", content: { type: "resource_link", name, uri } }
  *   - diff:  { type: "diff", path, oldText, newText }
  *   - term:  { type: "terminal", terminalId }
  *
  * The frontend expects:
  *   - text:  { type: "text", text: "…" }
+ *   - image: { type: "image", data, mimeType, uri? }
  *   - diff:  { type: "diff", diff: { path, old, new } }
  *   - cmd:   { type: "command_output", command?, output }
+ *
+ * Variants we don't model (audio, embedded resources) degrade to a text
+ * fallback carrying their name/uri instead of silently vanishing.
  */
 function normalizeToolCallContent(raw: unknown): ToolCallContent[] {
   if (!Array.isArray(raw)) return [];
@@ -182,7 +188,31 @@ function normalizeToolCallContent(raw: unknown): ToolCallContent[] {
       if (inner?.type === "text") {
         return { type: "text" as const, text: (inner.text as string) ?? "" };
       }
-      // Image / audio / resource — fall back to showing nothing for now.
+      // grok's read_file returns ImageContent for image/PDF files
+      // (acp_conversion.rs): base64 `data` + `mimeType` (+ optional `uri`).
+      if (inner?.type === "image") {
+        return {
+          type: "image" as const,
+          data: (inner.data as string) ?? "",
+          mimeType: (inner.mimeType as string) ?? "image/png",
+          uri: inner.uri as string | undefined,
+        };
+      }
+      // resource_link carries a human name + URI — degrade to text so the
+      // card still shows something useful.
+      if (inner?.type === "resource_link") {
+        const name = (inner.name as string) ?? "";
+        const uri = (inner.uri as string) ?? "";
+        return { type: "text" as const, text: uri ? `${name}\n${uri}` : name };
+      }
+      // Embedded resource with inline text — surface the text.
+      if (inner?.type === "resource") {
+        const res = inner.resource as Record<string, unknown> | undefined;
+        if (res && typeof res.text === "string") {
+          return { type: "text" as const, text: res.text };
+        }
+        return { type: "text" as const, text: "(binary resource)" };
+      }
       return { type: "text" as const, text: "" };
     }
 

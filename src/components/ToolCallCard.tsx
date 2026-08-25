@@ -1,5 +1,5 @@
 import type { ToolCallView } from "@/stores/session-store";
-import type { DiffContent, CommandOutputContent } from "@/lib/types";
+import type { DiffContent, CommandOutputContent, ImageToolContent } from "@/lib/types";
 import { checkCommandRisk, riskLabel } from "@/lib/command-risk";
 import { precheckCommand } from "@/lib/sandbox-guard";
 import { computeUnifiedDiff, hunksToUnifiedLines, summarizeDiff, type DiffLine } from "@/lib/unified-diff";
@@ -115,6 +115,7 @@ export function ToolCallDetailBody({
   const cmd = tc.content.find((c) => c.type === "command_output") as
     | CommandOutputContent
     | undefined;
+  const images = tc.content.filter((c) => c.type === "image") as ImageToolContent[];
   const texts = tc.content.filter((c) => c.type === "text") as Array<{
     type: "text";
     text: string;
@@ -152,19 +153,32 @@ export function ToolCallDetailBody({
           {cmd.output && <pre className="toolcall__output">{cmd.output}</pre>}
         </div>
       )}
+      {images.length > 0 && (
+        <div className="toolcall__images">
+          {images.map((img, i) => (
+            <img
+              key={i}
+              className="toolcall__image"
+              src={img.uri || `data:${img.mimeType};base64,${img.data}`}
+              alt={img.uri || `工具输出图片 ${i + 1}`}
+              loading="lazy"
+            />
+          ))}
+        </div>
+      )}
       {texts.map((t, i) => (
         <pre key={i} className="toolcall__text">
           {t.text}
         </pre>
       ))}
-      {!diff && !cmd && texts.length === 0 && tc.rawInput != null && (
+      {!diff && !cmd && images.length === 0 && texts.length === 0 && tc.rawInput != null && (
         <pre className="toolcall__text toolcall__raw-input">
           {typeof tc.rawInput === "string"
             ? tc.rawInput
             : JSON.stringify(tc.rawInput, null, 2)}
         </pre>
       )}
-      {!diff && !cmd && texts.length === 0 && tc.rawInput == null && (
+      {!diff && !cmd && images.length === 0 && texts.length === 0 && tc.rawInput == null && (
         <p className="tool-detail__empty">暂无详细输出</p>
       )}
     </div>

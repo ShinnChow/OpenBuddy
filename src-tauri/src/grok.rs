@@ -474,12 +474,13 @@ pub async fn session_usage(tx: &AcpAgentTx, session_id: &str) -> Result<serde_js
 #[cfg(test)]
 mod tests {
     //! End-to-end smoke test for the embedded grok runtime (no model call):
-    //! spawn the agent thread, run the ACP `initialize` handshake, and create
-    //! a session. `new_session` exercises the full `AgentBuilder::build` path
-    //! — including the OpenBuddy team-tools patch (patches/grok-build/02) —
-    //! so a grok-build upgrade that breaks toolset assembly fails here rather
-    //! than at first chat in the GUI. Marked `#[ignore]`: it spawns a real
-    //! agent thread against the user's `~/.grok` config (~10s). Run with
+    //! spawn the agent thread, run the ACP `initialize` handshake, create a
+    //! session, and verify grok connects to the team MCP server. `new_session`
+    //! exercises the full `AgentBuilder::build` path — including the client
+    //! side MCP merge (team_mcp.rs) — so a grok-build upgrade that breaks
+    //! toolset assembly or the MCP handshake fails here rather than at first
+    //! chat in the GUI. Marked `#[ignore]`: it spawns a real agent thread
+    //! against the user's `~/.grok` config (~10s). Run with
     //! `cargo test --lib -- --ignored spawn_smoke`.
     use super::*;
 

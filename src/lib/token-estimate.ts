@@ -60,6 +60,7 @@ export function estimateToolCallTokens(tc: {
     | { type: "text"; text: string }
     | { type: "command_output"; command?: string; output: string }
     | { type: "diff"; diff: { path: string; old: string; new: string } }
+    | { type: "image"; data: string; mimeType: string; uri?: string }
   >;
   rawInput?: unknown;
 }): number {
@@ -74,6 +75,9 @@ export function estimateToolCallTokens(tc: {
       total += estimateTextTokens(c.diff.path);
       total += estimateTextTokens(c.diff.old);
       total += estimateTextTokens(c.diff.new);
+    } else if (c.type === "image") {
+      // 图片按 base64 长度折算(粗略:4 字节→3 base64 字符→约 1 token/4 字节)。
+      total += Math.ceil((c.data.length * 3) / 4 / 4);
     }
   }
   if (tc.rawInput != null) {

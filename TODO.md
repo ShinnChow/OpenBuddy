@@ -86,7 +86,7 @@ grok login       # 复用 ~/.grok/auth.json
 ```
 
 **grok 源码 patch**（grok-build 现在是项目内 `vendor/grok-build` submodule）：
-1. `crates/build/xai-proto-build/src/lib.rs` —— `/dev/stdout` → temp file（Windows 兼容）。patch 已沉淀到主仓 `patches/grok-build/01-windows-protoc.patch`，按需 apply（pin 的 `98c3b24` 实测若不需要可跳过）。
+1. `crates/build/xai-proto-build/src/lib.rs` —— `/dev/stdout` → temp file（Windows 兼容）。patch 已沉淀到主仓 `patches/grok-build/01-windows-protoc.patch`。pin `c2ad97f8`（0.15.0）实测仍需 apply（上游还是 `/dev/stdout`），apply 后保持 submodule 脏状态即可，主仓只跟踪 pin 的 commit。
 2. `streaming_local_terminal.rs` —— 已废弃，改用降 `process-wrap` 到 9.0.0 统一 windows 版本解决。
 
 同样把 OpenBuddy 项目提交：
@@ -121,12 +121,15 @@ debug = false
 
 构建跑通后，测一轮完整对话，重点验证：
 
-- [ ] 首页输入框发消息 → 触发 `grok_new_session` + `grok_send`
-- [ ] 流式 token 正常累积显示（`grok://update` event → `session-store.applyUpdate`）
-- [ ] grok 回复结束 → `grok://complete` event → 消息标 complete
-- [ ] 工具调用卡片渲染（让 grok 读文件/搜索，看 `tool_call` update 是否正确显示）
-- [ ] 权限弹窗（让 grok 编辑文件，确认 `session/request_permission` 弹窗 + Allow/Deny 回应）
-- [ ] 停止按钮（`grok_cancel` —— 已实现，发送 `AcpAgentMessage::Cancel`）
+- [x] 首页输入框发消息 → 触发 `grok_new_session` + `grok_send`（App.tsx `handleSendNew`；0.12–0.14 多轮实测）
+- [x] 流式 token 正常累积显示（`grok://update` event → `session-store.applyUpdate`；单测覆盖累积/切会话/回放抑制）
+- [x] grok 回复结束 → `grok://complete` event → 消息标 complete（`markComplete`；单测覆盖后台完成路由）
+- [x] 工具调用卡片渲染（read/edit/grep/bash/search 均走 `acp_conversion.rs` 的 text/diff 通道；图片输出 0.15.0 起支持，见 §5）
+- [x] 权限弹窗（`session/request_permission` → PermissionInlineCard + Allow/Deny 回应；0.12 修复 always-approve 回退）
+- [x] 停止按钮（`grok_cancel` —— 发送 `AcpAgentMessage::Cancel`；本地 `stopStreaming` 兜底防挂起）
+
+> 0.15.0 备注：内核升级回归不再依赖手工 GUI 验证 —— `cargo test --lib -- --ignored spawn_smoke`
+> 覆盖 spawn → initialize → new_session → MCP 连接全链路，本次 grok-build 升级即以它守门（通过）。
 
 **已知可能出问题的点**（运行时才暴露，cargo check 查不出来）：
 
@@ -179,8 +182,13 @@ debug = false
 要做：
 - [x] 顶栏或设置里加一个"切换工作目录"按钮，调 `tauri-plugin-dialog` 的 `open({ directory: true })` 选目录
   → ChatView 顶栏已加 `WorkspacePicker`（复用 Composer 的组件），显示当前 cwd + 下拉切换 + 原生目录选择框
-- [ ] 选完后重新 `grok_init`（需要先支持 init 多次 / 重建 agent），或改成每个 cwd 一个 agent 实例
-- [ ] `sessions.rs:list_sessions` 已按 cwd 过滤，切 cwd 后刷新侧栏
+- [x] 选完后重新 `grok_init`（需要先支持 init 多次 / 重建 agent），或改成每个 cwd 一个 agent 实例
+  → **证实不必要（0.15.0）**：`spawn_grok(_cwd)` 的 cwd 参数本身就被忽略——agent 与 cwd 无关，
+  每个会话在 `new_session(cwd)` / `load_session(id, cwd)` 时自带 cwd（ACP 按 session 锁定 cwd）。
+  切工作目录只是改「下一个新会话落哪个空间节点」，无需重建 agent。
+- [x] `sessions.rs:list_sessions` 已按 cwd 过滤，切 cwd 后刷新侧栏
+  → 0.15.0：`handleSelectWorkspace` 现在会立刻 `grokListSessions(newCwd)`——收件箱 cwd 刷新任务组，
+  其它 cwd 加载并展开对应空间节点（不再等用户手动展开）。
 
 ---
 
@@ -188,8 +196,15 @@ debug = false
 
 `src/components/ToolCallCard.tsx` 现在按 `content[].type` 渲染（text/diff/command_output）。但 grok 的实际工具调用结构需要对照真实数据完善：
 
-- [ ] 跑一轮对话让 grok 用各种工具（read_file/edit/grep/run_terminal_command/web_search），抓 `grok://update` 的实际 payload
-- [ ] 对照 `src/lib/types.ts` 的 `ToolCallContent` 类型，补全缺失的 content 类型
+- [x] 跑一轮对话让 grok 用各种工具（read_file/edit/grep/run_terminal_command/web_search），抓 `grok://update` 的实际 payload
+  → **0.15.0 改用源头核对**：payload 的权威生产者是 grok 的 `session/acp_conversion.rs` +
+  `agent-client-protocol-schema` crate（本地 registry 源码），比抓包更稳（升级时 diff 即可复核）。
+  结论：read_file/edit/grep/bash/web_search 全走 text/diff 通道；**read_file 读图片/PDF 时返回
+  `ContentBlock::Image`（base64 data + mimeType）** —— 这是此前唯一缺失的类型。
+- [x] 对照 `src/lib/types.ts` 的 `ToolCallContent` 类型，补全缺失的 content 类型
+  → 0.15.0：新增 `ImageToolContent`；`normalizeToolCallContent` 把 ACP 的
+  `{type:"content",content:{type:"image",…}}` 解包成前端 image 块，ToolCallCard 详情里直接渲染图片；
+  resource_link / embedded resource 降级为文本（不再静默丢失）；token 估算同步覆盖 image。
 - [x] diff 视图当前是朴素的逐行对比（`ToolCallCard.tsx:DiffView`），换成真正的 unified diff（用 `diff` npm 包或 `react-diff-viewer`）
   → 已实现 Myers LCS unified diff（`src/lib/unified-diff.ts`），带行号、+/-/context 着色、统计
 - [x] 工具的 `rawInput`（grok 传的工具参数）目前没显示——`bridge.rs` 的 `PermissionFrontend.raw_input` 是 `None`，因为 `RequestPermissionRequest` 的 `update` 子字段没解析。要显示工具参数需从 `update.toolCallId`/`update.title` 提取
@@ -200,7 +215,11 @@ debug = false
 ## 6. 体验打磨
 
 - [x] **暗色主题**：tokens.css 的 `[data-theme="dark"]` 已就位，`ThemeProvider.tsx` 已实现切换。跑起来验证 WorkBuddy 的 teal 品牌色在暗色下正确
-- [ ] **markdown 渲染**：`Markdown.tsx` 用 react-markdown + remark-gfm + syntax-highlighter。验证代码块高亮、表格、任务列表
+- [x] **markdown 渲染**：`Markdown.tsx` 用 react-markdown + remark-gfm + syntax-highlighter。验证代码块高亮、表格、任务列表
+  → 0.15.0 用渲染测试逐项验证（`Markdown.test.tsx`，8 用例）：hljs 高亮 span、GFM 表格、任务列表、
+  katex 公式、链接 noopener、原始 HTML 不进 DOM。**修复一个真 bug**：rehype-sanitize 的
+  defaultSchema 会剥掉 checkbox 的 `checked` 属性，`- [x]` 与 `- [ ]` 渲染得一模一样；
+  已在 sanitize schema 里放行 `input: ["type","checked","disabled"]`。
 - [x] **sidebar 折叠**：当前固定 260px，加折叠按钮（WorkBuddy 是 260px ↔ 56px）
 - [x] **会话重命名/删除**：侧栏右键菜单，调 grok 的 session 管理（需研究 grok 的 session 文件操作 API）
 - [x] **pinned 会话**：WorkBuddy 有置顶区，当前 `sessions-store` 没实现
@@ -208,7 +227,7 @@ debug = false
 
 ---
 
-## 7. 打包发布
+## 7. 打包发布 ✅（0.15.0 实测通过）
 
 ```bash
 pnpm tauri build
@@ -216,9 +235,20 @@ pnpm tauri build
 产出在 `src-tauri/target/release/bundle/`（`.msi` / `.exe` installer）。
 
 注意：
-- release build 会触发 grok 的 `build.rs` **下载并 bundle ripgrep**（grok 的搜索工具）。需联网。要跳过可设环境变量 `GROK_SHELL_BUNDLE_RG_PATH` 指向已装的 rg
+- release build 会触发 grok 的 `build.rs` **下载并 bundle ripgrep**（grok 的搜索工具）。需联网。要跳过可设环境变量 `GROK_SHELL_BUNDLE_RG_PATH` 指向已装的 rg（0.15.0 实测：指 ZCode 自带的 rg.exe 可用，全程无下载）
 - `tauri.conf.json` 的 `bundle.icon` 已配好（从 WorkBuddy logo 生成的 `src-tauri/icons/`）
 - appId 是 `com.openbuddy.desktop`，可改
+
+0.15.0 打包实战备注（换机器/重跑会再遇到）：
+- **链接器 OOM（LNK1102 内存不足）**：32G RAM + 默认并行度跑 `cargo test` / release 链接时
+  commit limit 耗尽，症状是各种假错误（E0786 元数据无效 / E0462 staticlib-rlim 混杂 / LNK1102）。
+  解法：`cargo test -j 2` 或 `CARGO_BUILD_JOBS=2 pnpm tauri build`。
+- **WiX 下载被墙**：MSI 打包要下 `wix314-binaries.zip`（github 直连超时/10054）。走 ghproxy
+  断点续传下到 `%LOCALAPPDATA%\tauri\WixTools3.14.1\`（解压即用，注意 tauri 按版本号找目录，
+  旧的无版本号 `WixTools` 缓存不会被复用）。NSIS 不额外下载（缓存在 `%LOCALAPPDATA%\tauri\NSIS`）。
+- protoc patch 的 `descriptor_set_out=NUL`（相对路径）会在 protoc 的 CWD（某个 crate 目录）落下
+  一个名为 `NUL` 的真实文件，属无害垃圾；删除需 `\\?\` 前缀路径（git clean / cmd del 都不行，
+  可用 node `fs.unlinkSync` 构造 `\\?\` 绝对路径删）。
 
 ---
 

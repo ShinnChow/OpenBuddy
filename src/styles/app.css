@@ -2212,6 +2212,21 @@
   opacity: 0.75;
   border-left: 3px solid var(--wb-brand);
 }
+/* 工具输出的图片（read_file 读图片/PDF 时 grok 返回 ImageContent） */
+.toolcall__images {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0;
+}
+.toolcall__image {
+  max-width: 100%;
+  max-height: 360px;
+  border-radius: 6px;
+  border: 1px solid var(--wb-border, rgba(0, 0, 0, 0.08));
+  object-fit: contain;
+  align-self: flex-start;
+}
 /* 命令风险徽章(对齐 WorkBuddy command-risk)—— medium/high 才渲染 */
 .cmd-risk {
   display: inline-flex;

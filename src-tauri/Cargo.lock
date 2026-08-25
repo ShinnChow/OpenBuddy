@@ -6783,7 +6783,7 @@ dependencies = [
 
 [[package]]
 name = "openbuddy"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
@@ -12929,6 +12929,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio-util",
  "tracing",
  "tracing-subscriber",
@@ -12970,6 +12971,7 @@ dependencies = [
  "url",
  "xai-circuit-breaker",
  "xai-grok-auth",
+ "xai-grok-extra-ca",
  "xai-grok-version",
  "zstd",
 ]
@@ -13153,7 +13155,9 @@ version = "0.1.0"
 dependencies = [
  "reqwest 0.12.28",
  "rustls",
+ "rustls-native-certs",
  "tracing",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -13198,6 +13202,7 @@ dependencies = [
  "tracing",
  "url",
  "xai-grok-config",
+ "xai-grok-extra-ca",
  "xai-grok-tools",
 ]
 
@@ -13207,6 +13212,7 @@ version = "0.1.0"
 dependencies = [
  "reqwest 0.12.28",
  "reqwest-middleware 0.4.2",
+ "rustls",
  "serde_json",
  "tracing",
  "xai-grok-auth",
@@ -13284,6 +13290,7 @@ dependencies = [
  "xai-grok-tools",
  "xai-grok-version",
  "xai-sqlite-journal",
+ "xai-token-estimation",
 ]
 
 [[package]]
@@ -13450,13 +13457,14 @@ dependencies = [
  "wl-clipboard-rs",
  "xai-grok-config-types",
  "xai-grok-models",
+ "xai-grok-status-line",
  "xai-grok-tools",
  "xai-tty-utils",
 ]
 
 [[package]]
 name = "xai-grok-shell"
-version = "1.0.4"
+version = "1.0.8"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
@@ -13498,21 +13506,17 @@ dependencies = [
  "nucleo",
  "obfstr",
  "parking_lot",
- "portable-pty",
- "process-wrap",
  "prod-mc-cli-chat-proxy-types",
  "rand 0.9.5",
  "regex",
  "reqwest 0.12.28",
  "reqwest-middleware 0.4.2",
  "rustls",
- "rustls-native-certs",
  "semver",
  "serde",
  "serde_ignored",
  "serde_json",
  "sha2 0.10.9",
- "shlex 1.3.0",
  "similar",
  "siphasher",
  "strum 0.27.2",
@@ -13570,6 +13574,8 @@ dependencies = [
  "xai-grok-shared",
  "xai-grok-shell-base",
  "xai-grok-shell-session-support",
+ "xai-grok-shell-terminal",
+ "xai-grok-status-line",
  "xai-grok-subagent-resolution",
  "xai-grok-telemetry",
  "xai-grok-tools",
@@ -13609,6 +13615,7 @@ dependencies = [
  "windows",
  "xai-grok-config",
  "xai-grok-env",
+ "xai-grok-extra-ca",
  "xai-grok-shared",
  "xai-grok-version",
  "xai-tty-utils",
@@ -13626,6 +13633,43 @@ dependencies = [
  "tracing",
  "xai-grok-http",
  "xai-grok-version",
+]
+
+[[package]]
+name = "xai-grok-shell-terminal"
+version = "0.1.0"
+dependencies = [
+ "agent-client-protocol",
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "futures",
+ "libc",
+ "portable-pty",
+ "process-wrap",
+ "serde",
+ "serde_json",
+ "shlex 1.3.0",
+ "thiserror 2.0.19",
+ "tokio",
+ "tracing",
+ "uuid",
+ "windows",
+ "xai-acp-lib",
+ "xai-grok-config",
+ "xai-grok-paths",
+ "xai-grok-sandbox",
+ "xai-grok-tools",
+ "xai-grok-workspace",
+ "xai-tty-utils",
+]
+
+[[package]]
+name = "xai-grok-status-line"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "strum 0.27.2",
 ]
 
 [[package]]
@@ -13686,8 +13730,10 @@ dependencies = [
  "xai-grok-sampler",
  "xai-grok-secrets",
  "xai-grok-session-events",
+ "xai-grok-version",
  "xai-mixpanel",
  "xai-token-estimation",
+ "xai-tty-utils",
 ]
 
 [[package]]
@@ -13785,7 +13831,7 @@ dependencies = [
 
 [[package]]
 name = "xai-grok-version"
-version = "1.0.4"
+version = "1.0.8"
 dependencies = [
  "semver",
 ]
@@ -13820,10 +13866,10 @@ dependencies = [
  "nohash-hasher",
  "parking_lot",
  "prometheus",
+ "rand 0.9.5",
  "regex",
  "reqwest 0.12.28",
  "rustc-hash",
- "rustls",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -13857,6 +13903,7 @@ dependencies = [
  "xai-grok-config-types",
  "xai-grok-diag-server",
  "xai-grok-env",
+ "xai-grok-extra-ca",
  "xai-grok-hooks",
  "xai-grok-mcp",
  "xai-grok-paths",

@@ -36,6 +36,9 @@ function buildSanitizeSchema(config?: MarkdownConfig) {
   schema.attributes = {
     ...defaultSchema.attributes,
     code: [...(defaultSchema.attributes?.code || []), "className", "meta"],
+    // GFM 任务列表的 checkbox 需要 `checked`（defaultSchema 会剥掉它，
+    // 导致 [x]/[ ] 渲染成一模一样的未勾选框）。
+    input: ["type", "checked", "disabled"],
     span: ["className", "style", "ariaHidden", "role"],
     div: ["className", "style"],
     pre: [...(defaultSchema.attributes?.pre || []), "className"],

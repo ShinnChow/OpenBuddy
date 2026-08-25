@@ -621,6 +621,8 @@ function Shell() {
   // must NOT clear the current transcript or rebuild the list here — picking a
   // directory just decides which group the next 新建任务 lands in (empty =
   // 任务 group, a real dir = that 空间 node).
+  // No agent re-init is needed: spawn_grok ignores its cwd and every session
+  // carries its own cwd at new_session/load_session time.
   const handleSelectWorkspace = (newCwd: string) => {
     cwdRef.current = newCwd;
     // Refresh the workspace list so a freshly picked directory appears in the
@@ -629,6 +631,22 @@ function Shell() {
       sessionsStore.getState().setWorkspaces(ws);
       setWorkspaces(ws);
     }).catch(() => {/* non-fatal */});
+    // Refresh the sidebar's session list for the newly picked cwd (list_sessions
+    // already filters by cwd server-side). Picking the inbox cwd refreshes the
+    // 任务 group; any other cwd loads + expands that 空间 node immediately,
+    // instead of waiting for the user to expand it.
+    if (!newCwd) return;
+    void grokListSessions(newCwd)
+      .then((list) => {
+        const store = sessionsStore.getState();
+        if (newCwd === store.homeCwd) {
+          store.setIndependent(list);
+        } else {
+          store.setWorkspaceSessions(newCwd, list);
+          store.setExpanded(newCwd, true);
+        }
+      })
+      .catch(() => {/* non-fatal */});
   };
 
   const handleNewSession = () => {

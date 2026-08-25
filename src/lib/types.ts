@@ -43,7 +43,23 @@ export interface CommandOutputContent {
   exitCode?: number | null;
 }
 
-export type ToolCallContent = TextContent | DiffContent | CommandOutputContent;
+/** An image produced by a tool (read_file on an image/PDF in grok).
+ *  Mirrors ACP `ContentBlock::Image` after unwrapping the outer
+ *  `{ type: "content", content: … }` envelope (see normalizeToolCallContent). */
+export interface ImageToolContent {
+  type: "image";
+  /** Base64-encoded image bytes. */
+  data: string;
+  mimeType: string;
+  /** Optional source URI (http/file) when the tool references a file. */
+  uri?: string;
+}
+
+export type ToolCallContent =
+  | TextContent
+  | DiffContent
+  | CommandOutputContent
+  | ImageToolContent;
 
 // ---------- tool call status ----------
 

@@ -187,3 +187,81 @@ describe("session-store transcripts", () => {
     );
   });
 });
+
+describe("tool_call content 归一化 (normalizeToolCallContent)", () => {
+  beforeEach(resetStore);
+
+  /** 注入一条 tool_call update,返回生成的 ToolCallView。 */
+  const applyToolCall = (content: unknown) => {
+    const s = useSessionStore.getState();
+    s.setSession("A");
+    s.applyUpdate(
+      {
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-1",
+        title: "Read foo.png",
+        kind: "read_file",
+        status: "completed",
+        content,
+        __sessionId: "A",
+      } as unknown as Parameters<
+        ReturnType<typeof useSessionStore.getState>["applyUpdate"]
+      >[0],
+    );
+    const msg = useSessionStore
+      .getState()
+      .messages.find((m) => m.role === "assistant")!;
+    const part = msg.parts.find((p) => p.kind === "tool_call")! as unknown as {
+      toolCall: { content: Record<string, unknown>[] };
+    };
+    return part.toolCall.content;
+  };
+
+  it("ACP image content(grok read_file 读图片/PDF)→ 前端 image 块", () => {
+    const out = applyToolCall([
+      {
+        type: "content",
+        content: { type: "image", data: "aGVsbG8=", mimeType: "image/png", uri: "file:///tmp/foo.png" },
+      },
+    ]);
+    expect(out).toEqual([
+      { type: "image", data: "aGVsbG8=", mimeType: "image/png", uri: "file:///tmp/foo.png" },
+    ]);
+  });
+
+  it("多页 PDF 的多个 image 块都保留顺序", () => {
+    const out = applyToolCall([
+      { type: "content", content: { type: "image", data: "AAAA", mimeType: "image/png" } },
+      { type: "content", content: { type: "image", data: "BBBB", mimeType: "image/jpeg" } },
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toEqual({ type: "image", data: "AAAA", mimeType: "image/png", uri: undefined });
+    expect(out[1].mimeType).toBe("image/jpeg");
+  });
+
+  it("resource_link 降级为 name+uri 文本,不再静默丢失", () => {
+    const out = applyToolCall([
+      { type: "content", content: { type: "resource_link", name: "报告", uri: "file:///tmp/r.md" } },
+    ]);
+    expect(out).toEqual([{ type: "text", text: "报告\nfile:///tmp/r.md" }]);
+  });
+
+  it("embedded resource 的 text 内容被提取", () => {
+    const out = applyToolCall([
+      { type: "content", content: { type: "resource", resource: { uri: "file:///x", text: "inline" } } },
+    ]);
+    expect(out).toEqual([{ type: "text", text: "inline" }]);
+  });
+
+  it("ACP diff(oldText/newText 扁平)→ 嵌套 diff.old/new", () => {
+    const out = applyToolCall([
+      { type: "diff", path: "a.txt", oldText: "1", newText: "2" },
+    ]);
+    expect(out).toEqual([{ type: "diff", diff: { path: "a.txt", old: "1", new: "2" } }]);
+  });
+
+  it("terminal → command_output 占位(保持旧行为)", () => {
+    const out = applyToolCall([{ type: "terminal", terminalId: "t1" }]);
+    expect(out).toEqual([{ type: "command_output", command: undefined, output: "[terminal t1]" }]);
+  });
+});
